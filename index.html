@@ -6193,7 +6193,7 @@ function renderVacationMonth(month, table) {
                     if(otherEntry) usedWorkerIds.add(otherEntry.worker.id);
                 }
                 const currentEntry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===currentValue.toLocaleLowerCase("cs");});
-                const emptyOption=document.createElement("option"); emptyOption.value=""; emptyOption.textContent="— prázdné / smazat —"; input.appendChild(emptyOption);
+                const emptyOption=document.createElement("option"); emptyOption.value=""; emptyOption.textContent=""; input.appendChild(emptyOption);
                 entries.forEach(function(e){
                     if(!usedWorkerIds.has(e.worker.id) || (currentEntry && e.worker.id===currentEntry.worker.id)){
                         const o=document.createElement("option");o.value=e.code;o.textContent=e.code;input.appendChild(o);
