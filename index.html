@@ -6156,8 +6156,10 @@ function renderVacationMonth(month, table) {
                     vacationVV[vacationWeekKey(month,wi)]=Math.max(0,Math.min(VACATION_ROWS,Number(input.value)||0));
                     saveData("rozdelovnik_vacation_vv",vacationVV);
                     queueVacationWeekCloudSave();
+                    const scrollX = window.scrollX;
+                    const scrollY = window.scrollY;
                     renderVacationPlanning();
-                    requestAnimationFrame(function(){document.getElementById("vacationMonth_"+month)?.scrollIntoView({block:"start"});});
+                    requestAnimationFrame(function(){ window.scrollTo(scrollX, scrollY); });
                 });
                 cell.appendChild(input);
             } else if(pos===2) {
@@ -6229,8 +6231,10 @@ function renderVacationMonth(month, table) {
                 input.addEventListener("change",function(){
                     const val=input.value.trim();const result=syncVacationCell(month,row,date,val);
                     if(!result.ok){alert(result.message);input.value=vacationPlan[key]||"";}
+                    const scrollX = window.scrollX;
+                    const scrollY = window.scrollY;
                     renderVacationPlanning();
-                    requestAnimationFrame(function(){document.getElementById("vacationMonth_"+month)?.scrollIntoView({block:"start"});});
+                    requestAnimationFrame(function(){ window.scrollTo(scrollX, scrollY); });
                 });td.appendChild(input);
             }
             tr.appendChild(td);
