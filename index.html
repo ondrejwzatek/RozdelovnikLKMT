@@ -1,0 +1,6232 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Rozdělovník 2026</title>
+
+<style>
+
+/* =====================================================
+   ZÁKLAD
+===================================================== */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f2f4f7;
+    color: #222;
+}
+
+button,
+input,
+select {
+    font-family: inherit;
+}
+
+.container {
+    width: 100%;
+    max-width: 1800px;
+    margin: auto;
+    padding: 20px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+
+/* =====================================================
+   HLAVNÍ STRÁNKA
+===================================================== */
+
+.header {
+    background: white;
+    border: 1px solid #d5d9de;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+
+h1 {
+    text-align: center;
+    margin: 0 0 25px 0;
+}
+
+.home-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.months {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+}
+
+.month-card {
+    border: 1px solid #ccd2d8;
+    border-radius: 8px;
+    padding: 14px;
+    background: #f8f9fa;
+}
+
+.month-name {
+    font-weight: bold;
+    font-size: 17px;
+    margin-bottom: 12px;
+}
+
+.date-range {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.date-range input {
+    width: 100%;
+    padding: 7px;
+    border: 1px solid #c7ccd1;
+    border-radius: 5px;
+}
+
+.open-month {
+    width: 100%;
+    border: none;
+    border-radius: 6px;
+    padding: 9px;
+    background: #1769aa;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.open-month:hover {
+    background: #125789;
+}
+
+
+/* =====================================================
+   TLAČÍTKA
+===================================================== */
+
+.button {
+    border: 1px solid #c7ccd1;
+    background: white;
+    padding: 8px 13px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.button:hover {
+    background: #eef1f4;
+}
+
+.button-green {
+    background: #198754;
+    color: white;
+    border: none;
+}
+
+.button-green:hover {
+    background: #157347;
+}
+
+.button-red {
+    color: #c62828;
+    border-color: #c62828;
+}
+
+.button-red:hover {
+    background: #c62828;
+    color: white;
+}
+
+.button-blue {
+    background: #1769aa;
+    color: white;
+    border: none;
+}
+
+.button-blue:hover {
+    background: #125789;
+}
+
+
+/* =====================================================
+   TOOLBAR
+===================================================== */
+
+.toolbar {
+    background: white;
+    border: 1px solid #d5d9de;
+    border-radius: 10px;
+    padding: 12px 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    gap: 10px;
+}
+
+.toolbar h2 {
+    margin: 0;
+}
+
+.toolbar-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+
+
+/* Záhlaví samostatných stránek zůstává při posouvání nahoře */
+.sticky-page-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+.legend-page-content {
+    background: white;
+    border: 1px solid #d5d9de;
+    border-radius: 10px;
+    padding: 18px;
+    overflow-x: auto;
+}
+
+/* =====================================================
+   INFORMACE O OBDOBÍ
+===================================================== */
+
+
+.period-settings {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.period-settings label { font-size: 13px; font-weight: 600; }
+.period-settings input[type="number"] { width: 64px; padding: 5px; }
+.period-settings input[type="date"] { padding: 5px; }
+.period-result { font-size: 12px; color: #555; margin-top: 5px; }
+.period-info {
+    background: white;
+    border: 1px solid #d5d9de;
+    border-radius: 7px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+
+
+/* =====================================================
+   TABULKA ROZDĚLOVNÍKU
+===================================================== */
+
+.table-wrapper {
+    background: white;
+    border: 1px solid #d5d9de;
+    border-radius: 10px;
+    overflow-x: auto;
+}
+
+.schedule {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.schedule th,
+.schedule td {
+    border: 1px solid #d5d9de;
+    text-align: center;
+}
+
+.schedule th {
+    height: 42px;
+    background: #e8ebee;
+    font-size: 11px;
+}
+
+.schedule th.worker-column {
+    width: 130px;
+}
+
+.schedule td.worker {
+    width: 130px;
+    text-align: left;
+    padding-left: 7px;
+    font-size: 12px;
+    font-weight: bold;
+    background: white;
+}
+
+.schedule td {
+    height: 40px;
+    padding: 0;
+}
+
+.weekend {
+    background: #eef0f2 !important;
+}
+
+/* Státní svátek, který připadne na sobotu nebo neděli */
+.holiday-weekend {
+    background: #f2b8b8 !important;
+}
+
+
+/* =====================================================
+   VÝBĚR SMĚNY
+===================================================== */
+
+.assignment {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+    text-align: center;
+    font-weight: bold;
+    cursor: pointer;
+
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+.assignment:focus {
+    outline: 2px solid #1769aa;
+    outline-offset: -2px;
+}
+
+
+/* =====================================================
+   PŘESČAS
+===================================================== */
+
+.overtime-row td {
+    height: 20px;
+}
+
+.overtime-label {
+    color: #1769aa !important;
+    background: #f4f8fc !important;
+    font-size: 11px !important;
+}
+
+.overtime-input {
+    width: 100%;
+    height: 100%;
+    min-height: 20px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: #fff8dc;
+
+    display: block;
+
+    text-align: center;
+    line-height: 20px;
+
+    font-weight: bold;
+    font-size: 11px;
+    color: #1769aa;
+
+    -moz-appearance: textfield;
+}
+
+.overtime-input::-webkit-inner-spin-button,
+.overtime-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.overtime-input:focus {
+    outline: 2px solid #1769aa;
+    outline-offset: -2px;
+}
+
+
+/* =====================================================
+   LEGENDA
+===================================================== */
+
+.legend {
+    display: none;
+    background: white;
+    border: 1px solid #d5d9de;
+    border-radius: 10px;
+    padding: 18px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    overflow-x: auto;
+}
+
+.legend.visible {
+    display: block;
+}
+
+.legend h2 {
+    margin-top: 0;
+}
+
+.legend-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1100px;
+}
+
+.legend-table th,
+.legend-table td {
+    border: 1px solid #d5d9de;
+    padding: 6px;
+}
+
+.legend-table th {
+    background: #e8ebee;
+    font-size: 12px;
+}
+
+.legend-input {
+    width: 100%;
+    padding: 6px;
+    border: 1px solid #c7ccd1;
+    border-radius: 4px;
+}
+
+.calculated {
+    background: #f0f2f4;
+    font-weight: bold;
+    text-align: center;
+    min-width: 60px;
+}
+
+.legend-note {
+    font-size: 12px;
+    color: #66717c;
+    margin: 12px 0;
+}
+
+
+/* =====================================================
+   STATISTIKA
+===================================================== */
+
+.statistics-wrapper {
+    background: white;
+    border: 1px solid #d5d9de;
+    border-radius: 10px;
+    margin-top: 15px;
+    padding: 15px;
+    overflow-x: auto;
+}
+
+.statistics-wrapper h2 {
+    margin-top: 0;
+    margin-bottom: 12px;
+}
+
+.statistics-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1200px;
+}
+
+.statistics-table th,
+.statistics-table td {
+    border: 1px solid #d5d9de;
+    padding: 6px 5px;
+    text-align: center;
+    font-size: 11px;
+}
+
+.statistics-table tr:not(:first-child) td {
+    padding: 2px 1px;
+}
+
+.statistics-table th {
+    background: #e8ebee;
+    font-weight: bold;
+}
+
+.statistics-table td:first-child {
+    text-align: left;
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.stat-auto {
+    background: #f5f6f7;
+    font-weight: bold;
+}
+
+.stat-manual {
+    width: 75px;
+    padding: 6px;
+    text-align: center;
+    border: 1px solid #b8c0c8;
+    border-radius: 4px;
+    background: #fffdf0;
+}
+
+.stat-difference-positive {
+    color: #198754;
+    font-weight: bold;
+}
+
+.stat-difference-negative {
+    color: #c62828;
+    font-weight: bold;
+}
+
+.statistics-note {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #66717c;
+}
+
+
+/* =====================================================
+   SPRÁVA PRACOVNÍKŮ
+===================================================== */
+
+.workers-page {
+    background: white;
+    border: 1px solid #d5d9de;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+
+.workers-page h2 {
+    margin-top: 0;
+}
+
+.workers-note {
+    color: #66717c;
+    font-size: 13px;
+    margin-bottom: 18px;
+}
+
+
+/* =====================================================
+   TABULKA PRACOVNÍKŮ
+===================================================== */
+
+.workers-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.workers-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 750px;
+}
+
+.workers-table th,
+.workers-table td {
+    border: 1px solid #d5d9de;
+    padding: 6px;
+}
+
+.workers-table th {
+    background: #e8ebee;
+    font-size: 12px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.workers-table th:first-child {
+    width: 55px;
+}
+
+.workers-table th:nth-child(2) {
+    min-width: 230px;
+    text-align: left;
+}
+
+.workers-table th:nth-child(3),
+.workers-table th:nth-child(4),
+.workers-table th:nth-child(5),
+.workers-table th:nth-child(6),
+.workers-table th:nth-child(7) {
+    width: 100px;
+}
+
+.workers-table th:nth-child(8) {
+    width: 80px;
+}
+
+.workers-table th:nth-child(9) {
+    width: 145px;
+}
+
+.worker-color-input {
+    width: 52px;
+    height: 32px;
+    padding: 2px;
+    border: 1px solid #c7ccd1;
+    border-radius: 5px;
+    background: white;
+    cursor: pointer;
+}
+
+.workers-table td {
+    background: #f8f9fa;
+}
+
+.worker-number {
+    text-align: center;
+    font-weight: bold;
+    color: #66717c;
+}
+
+.worker-name-input,
+.worker-data-input {
+    width: 100%;
+    padding: 7px;
+    border: 1px solid #c7ccd1;
+    border-radius: 5px;
+    background: white;
+}
+
+.worker-data-input {
+    text-align: center;
+}
+
+.worker-management-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+}
+
+.move-button {
+    width: 35px;
+    height: 35px;
+    padding: 0;
+    border: 1px solid #c7ccd1;
+    background: white;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.move-button:hover {
+    background: #e8ebee;
+}
+
+.move-button:disabled {
+    opacity: .35;
+    cursor: default;
+}
+
+
+/* =====================================================
+   PŘIDÁNÍ PRACOVNÍKA
+===================================================== */
+
+.add-worker-panel {
+    display: flex;
+    gap: 8px;
+    margin-top: 15px;
+    max-width: 800px;
+}
+
+.add-worker-panel input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #c7ccd1;
+    border-radius: 5px;
+}
+
+
+
+/* =====================================================
+   PLÁNOVÁNÍ DOVOLENÝCH
+===================================================== */
+.vacation-page { background:white; border:1px solid #d5d9de; border-radius:12px; padding:18px; box-shadow:0 2px 8px rgba(0,0,0,.05); }
+.vacation-controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+.vacation-controls select { padding:7px 10px; border:1px solid #c7ccd1; border-radius:5px; }
+.vacation-table-wrapper { overflow-x:auto; margin-bottom:26px; }
+.vacation-month-section { margin-bottom:34px; }
+.vacation-month-title { margin:0 0 10px; padding:9px 12px; background:#eef1f4; border:1px solid #d5d9de; border-radius:7px; font-size:18px; position:sticky; top:0; z-index:3; }
+.vacation-table { width:100%; border-collapse:collapse; min-width:1200px; table-layout:fixed; }
+.vacation-table th,.vacation-table td { border:1px solid #cfd5db; text-align:center; height:34px; padding:0; font-size:11px; }
+.vacation-table th { background:#e8ebee; }
+.vacation-table .vac-stat { width:64px; font-weight:bold; background:#f7f8f9; }
+.vacation-table .vac-weekend { background:#e8f2a1 !important; }
+.vacation-table .vac-inactive { background:#bfc4ca; }
+.vacation-table th.vac-holiday { background:#ffe3e3 !important; }
+.vacation-table td.vac-holiday { background:#fff0f0 !important; }
+.vacation-table .vac-holiday-weekend { background:#f2b8b8 !important; }
+.vacation-table .vac-week-start { border-left:3px solid #8d969f; }
+.vacation-code { width:100%; height:100%; border:0; text-align:center; font-weight:bold; background:transparent; padding:0 2px; }
+.vacation-code:focus { outline:2px solid #1769aa; outline-offset:-2px; }
+.vacation-vv { width:46px; padding:4px; text-align:center; border:1px solid #b8c0c8; border-radius:4px; }
+.vacation-code-list { min-width:130px; padding:7px; border:1px solid #c7ccd1; border-radius:5px; background:white; }
+.vacation-note { font-size:12px; color:#66717c; margin-top:10px; }
+
+
+/* =====================================================
+   MOBIL
+===================================================== */
+
+@media (max-width: 900px) {
+
+    .months {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .container {
+        padding: 10px;
+    }
+
+    .schedule th.worker-column,
+    .schedule td.worker {
+        width: 90px;
+    }
+}
+
+@media (max-width: 600px) {
+
+    .months {
+        grid-template-columns: 1fr;
+    }
+
+    .toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .add-worker-panel {
+        flex-direction: column;
+    }
+}
+
+
+
+/* =====================================================
+   ONLINE PŘIHLÁŠENÍ / SUPABASE (VER4)
+===================================================== */
+#cloudLoginOverlay {
+    position: fixed; inset: 0; z-index: 10000;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(242,244,247,.97); padding: 20px;
+}
+.cloud-login-card {
+    width: min(420px, 100%); background: white; border: 1px solid #d5d9de;
+    border-radius: 12px; padding: 26px; box-shadow: 0 8px 30px rgba(0,0,0,.12);
+}
+.cloud-login-card h2 { margin-top: 0; text-align: center; }
+.cloud-login-card input { width: 100%; padding: 11px; margin: 6px 0 12px; border: 1px solid #bcc3ca; border-radius: 6px; }
+.cloud-login-card button { width: 100%; padding: 11px; }
+#cloudLoginError { color: #b42318; min-height: 20px; margin-top: 10px; font-size: 14px; }
+#cloudStatusBar {
+    position: fixed; right: 16px; top: 12px; z-index: 12000;
+    display: flex; align-items: center; gap: 7px;
+    background: rgba(255,255,255,.98); border: 2px solid #6b7280; border-radius: 9px;
+    padding: 8px 11px; font-size: 13px; font-weight: 700;
+    box-shadow: 0 3px 12px rgba(0,0,0,.16);
+}
+#cloudStatusBar.hidden { display: none; }
+#cloudStatusDot { width: 10px; height: 10px; border-radius: 50%; background: #6b7280; flex: 0 0 10px; }
+#cloudStatusBar.status-saved { border-color: #2e7d32; }
+#cloudStatusBar.status-saved #cloudStatusDot { background: #2e7d32; }
+#cloudStatusBar.status-saving { border-color: #d18b00; }
+#cloudStatusBar.status-saving #cloudStatusDot { background: #d18b00; }
+#cloudStatusBar.status-error { border-color: #c62828; }
+#cloudStatusBar.status-error #cloudStatusDot { background: #c62828; }
+#cloudManualSaveBtn { margin-left: 6px; border: 1px solid #9ca3af; background: #fff; border-radius: 6px; padding: 4px 9px; cursor: pointer; font-size: 12px; font-weight: 700; }
+#cloudManualSaveBtn:disabled { opacity: .55; cursor: wait; }
+#cloudLogoutBtn { margin-left: 5px; border: 0; background: transparent; text-decoration: underline; cursor: pointer; font-size: 12px; font-weight: 600; }
+
+</style>
+</head>
+
+<body>
+
+<div id="cloudLoginOverlay">
+  <div class="cloud-login-card">
+    <h2>Rozdělovník 2026</h2>
+    <p>Přihlášení k centrálním datům</p>
+    <label>E-mail</label>
+    <input id="cloudEmail" type="email" autocomplete="username">
+    <label>Heslo</label>
+    <input id="cloudPassword" type="password" autocomplete="current-password">
+    <button id="cloudLoginBtn" type="button">Přihlásit</button>
+    <div id="cloudLoginError"></div>
+  </div>
+</div>
+<div id="cloudStatusBar" class="hidden"><span id="cloudStatusDot" aria-hidden="true"></span><span id="cloudStatusText">Online</span><button id="cloudManualSaveBtn" type="button">Uložit</button><button id="cloudLogoutBtn" type="button">Odhlásit</button></div>
+
+
+<div class="container">
+
+
+<!-- =====================================================
+     HLAVNÍ STRÁNKA
+===================================================== -->
+
+<div id="homePage">
+
+    <div class="header">
+
+        <h1>Rozdělovník 2026</h1>
+
+        <div class="home-buttons">
+
+            <button
+                type="button"
+                class="button button-blue"
+                onclick="showWorkersPage()">
+                👥 Správa pracovníků
+            </button>
+
+            <button
+                type="button"
+                class="button"
+                onclick="showLegendPage()">
+                ⚙ Legenda
+            </button>
+
+            <button
+                type="button"
+                class="button button-green"
+                onclick="showVacationPage()">
+                🏖 Plánování dovolených
+            </button>
+
+        </div>
+
+        <div id="months" class="months"></div>
+
+    </div>
+
+
+    <div id="homeLegend" class="legend">
+
+        <h2>Legenda směn</h2>
+
+        <div id="homeLegendContent"></div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     SPRÁVA PRACOVNÍKŮ
+===================================================== -->
+
+<div id="workersPage" class="hidden">
+
+    <div class="toolbar sticky-page-header">
+
+        <h2>Správa pracovníků</h2>
+
+        <button
+            type="button"
+            class="button"
+            onclick="showHome()">
+            ← Zpět
+        </button>
+
+    </div>
+
+
+    <div class="workers-page">
+
+        <p class="workers-note">
+            Zde můžeš pracovníky přidávat, mazat, přejmenovávat,
+            měnit jejich údaje a pořadí. Sloupec D vyplňuješ ručně; RH, Ang
+            a D svátek se doplní automaticky (např. MK → MKR, MKa, MKs).
+            Fond D/RH určuje počet hodin za jeden den dovolené (např. 6,8 nebo 7,5).
+            Přesun pracovníka zachová všechny jeho směny, přesčasy i statistické údaje.
+        </p>
+
+
+        <div class="workers-table-wrapper">
+
+            <table class="workers-table">
+
+                <thead>
+
+                    <tr>
+
+                        <th>#</th>
+
+                        <th>Jméno</th>
+
+                        <th>D</th>
+
+                        <th>RH</th>
+
+                        <th>Ang</th>
+
+                        <th>D svátek</th>
+
+                        <th>Fond D/RH</th>
+
+                        <th>Barva</th>
+
+                        <th>Pořadí</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody id="workersList"></tbody>
+
+            </table>
+
+        </div>
+
+
+        <div class="add-worker-panel">
+
+            <input
+                id="newWorkerName"
+                type="text"
+                placeholder="Jméno nového pracovníka">
+
+            <button
+                type="button"
+                class="button button-green"
+                onclick="addWorkerFromManagement()">
+                + Přidat pracovníka
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     PLÁNOVÁNÍ DOVOLENÝCH
+===================================================== -->
+
+<div id="vacationPage" class="hidden">
+    <div class="toolbar sticky-page-header">
+        <h2>Plánování dovolených</h2>
+        <button type="button" class="button" onclick="showHome()">← Zpět</button>
+    </div>
+    <div class="vacation-page">
+        <div id="vacationAllMonths"></div>
+        <div class="vacation-note">VV určuje počet aktivních řádků v daném týdnu. Dovolenou lze zapisovat pouze Po–Pá. Kódy D, RH, Ang a D svátek se automaticky propisují do měsíčního rozdělovníku.</div>
+    </div>
+</div>
+
+<!-- =====================================================
+     LEGENDA SMĚN
+===================================================== -->
+
+<div id="legendPage" class="hidden">
+    <div class="toolbar sticky-page-header">
+        <h2>Legenda směn</h2>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button type="button" class="button" onclick="exportLegend()">Export legendy</button>
+            <button type="button" class="button" onclick="closeLegendPage()">← Zpět</button>
+        </div>
+    </div>
+    <div class="legend-page-content">
+        <div id="legendPageContent"></div>
+    </div>
+</div>
+
+
+<!-- =====================================================
+     MĚSÍČNÍ STRÁNKA
+===================================================== -->
+
+<div id="monthPage" class="hidden">
+
+    <div class="toolbar">
+
+        <h2 id="monthTitle"></h2>
+
+        <div class="toolbar-buttons">
+
+            <button
+                type="button"
+                class="button"
+                onclick="showHome()">
+                ← Zpět na měsíce
+            </button>
+
+            <button
+                type="button"
+                class="button"
+                onclick="showLegendPage()">
+                ⚙ Legenda
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div id="periodInfo" class="period-info"></div>
+
+
+    <div id="monthLegend" class="legend">
+
+        <h2>Legenda směn</h2>
+
+        <div id="monthLegendContent"></div>
+
+    </div>
+
+
+    <!-- ROZDĚLOVNÍK -->
+
+    <div class="table-wrapper">
+
+        <table id="scheduleTable" class="schedule"></table>
+
+    </div>
+
+
+    <!-- STATISTIKA -->
+
+    <div id="statistics" class="statistics-wrapper">
+
+        <h2>Statistika</h2>
+
+        <div id="statisticsContent"></div>
+
+    </div>
+
+</div>
+
+</div>
+
+
+<script>
+
+/* =====================================================
+   SUPABASE CLOUD - VER4
+   První online krok: přihlášení + centrální Legenda směn.
+===================================================== */
+const SUPABASE_URL = "https://fuzdntjsidmankpflqjq.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_wMuEnP7BgLlMru9arfM4aA_TMVMPMHQ";
+const CLOUD_SESSION_KEY = "rozdelovnik_supabase_session";
+let cloudSession = null;
+let cloudLegendReady = false;
+let cloudLegendSaveTimer = null;
+let cloudLegendSaving = false;
+let cloudLegendSavePending = false;
+let cloudWorkersReady = false;
+let cloudWorkersSaveTimer = null;
+let cloudWorkersSaving = false;
+let cloudWorkersSavePending = false;
+let cloudPeriodsReady = false;
+let cloudPeriodsSaveTimer = null;
+let cloudPeriodsSaving = false;
+let cloudPeriodsSavePending = false;
+let cloudVacationWeekReady = false;
+let cloudVacationWeekSaveTimer = null;
+let cloudVacationWeekSaving = false;
+let cloudVacationWeekSavePending = false;
+let cloudVacationPlanReady = false;
+let cloudVacationPlanSaveTimer = null;
+let cloudVacationPlanSaving = false;
+let cloudVacationPlanSavePending = false;
+let cloudScheduleReady = false;
+let cloudScheduleSaving = false;
+let cloudScheduleSavePending = false;
+let cloudScheduleSaveTimer = null;
+
+function cloudHeaders(extra) {
+    const h = Object.assign({
+        "apikey": SUPABASE_PUBLISHABLE_KEY,
+        "Content-Type": "application/json"
+    }, extra || {});
+    if (cloudSession && cloudSession.access_token) h["Authorization"] = "Bearer " + cloudSession.access_token;
+    return h;
+}
+
+function setCloudStatus(text, forceVisual) {
+    const el = document.getElementById("cloudStatusText");
+    const bar = document.getElementById("cloudStatusBar");
+    const t = String(text || "").toLowerCase();
+
+    /* Běžné automatické načítání/ukládání už stavový panel nerozblikává.
+       Oranžový stav se zobrazí pouze při ručním stisku tlačítka Uložit.
+       Skutečná chyba se naopak zobrazí vždy. */
+    const isError = t.includes("chyba");
+    const isTransient = t.includes("uklád") || t.includes("načít");
+    if (isTransient && !forceVisual) return;
+
+    if (el) el.textContent = text;
+    if (bar) {
+        bar.classList.remove("status-saved", "status-saving", "status-error");
+        if (isError) bar.classList.add("status-error");
+        else if (isTransient) bar.classList.add("status-saving");
+        else if (t.includes("online") || t.includes("synchroniz") || t.includes("uloženo")) bar.classList.add("status-saved");
+    }
+}
+
+async function manualCloudSave() {
+    if (!cloudSession) { setCloudStatus("Chyba • nepřihlášeno"); return; }
+    const btn = document.getElementById("cloudManualSaveBtn");
+    if (btn) btn.disabled = true;
+    setCloudStatus("Ukládám…", true);
+    try {
+        await saveLegendToCloudNow();
+        await saveWorkersToCloudNow();
+        await savePeriodsToCloudNow(true);
+        await saveVacationWeekSettingsToCloudNow(true);
+        await saveVacationPlanToCloudNow(true);
+        await saveScheduleToCloudNow(true);
+        setCloudStatus("Online • uloženo", true);
+    } catch (e) {
+        console.error(e);
+        setCloudStatus("Chyba ukládání", true);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function cloudLogin(email, password) {
+    const r = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=password", {
+        method: "POST",
+        headers: cloudHeaders(),
+        body: JSON.stringify({email: email, password: password})
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error_description || data.msg || data.message || "Přihlášení se nezdařilo.");
+    cloudSession = data;
+    localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify(data));
+    return data;
+}
+
+async function cloudRefreshSession() {
+    if (!cloudSession || !cloudSession.refresh_token) return false;
+    const r = await fetch(SUPABASE_URL + "/auth/v1/token?grant_type=refresh_token", {
+        method: "POST", headers: cloudHeaders(), body: JSON.stringify({refresh_token: cloudSession.refresh_token})
+    });
+    if (!r.ok) return false;
+    cloudSession = await r.json();
+    localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify(cloudSession));
+    return true;
+}
+
+async function cloudFetch(path, options) {
+    options = options || {};
+    options.headers = cloudHeaders(options.headers);
+    let r = await fetch(SUPABASE_URL + "/rest/v1/" + path, options);
+    if (r.status === 401 && await cloudRefreshSession()) {
+        options.headers = cloudHeaders(options.headers);
+        r = await fetch(SUPABASE_URL + "/rest/v1/" + path, options);
+    }
+    return r;
+}
+
+function legendToCloudRows(items) {
+    return items.map(function(item, i) {
+        return {
+            type: String(item.type || ""),
+            time_range: String(item.time || ""),
+            fpd: (item.fpd === "" || item.fpd == null || isNaN(Number(item.fpd))) ? null : Number(item.fpd),
+            description: String(item.description || ""),
+            is_shift: !!item.shift,
+            sort_order: i,
+            updated_at: new Date().toISOString()
+        };
+    });
+}
+
+function cloudRowsToLegend(rows) {
+    return rows.map(function(row) {
+        return {
+            id: "cloud_" + row.id,
+            type: row.type,
+            time: row.time_range || "",
+            fpd: row.fpd == null ? "" : String(row.fpd),
+            description: row.description || "",
+            shift: !!row.is_shift
+        };
+    });
+}
+
+async function loadLegendFromCloud() {
+    setCloudStatus("Načítám legendu…");
+    const r = await cloudFetch("shift_legend?select=*&order=sort_order.asc,id.asc", {method:"GET"});
+    if (!r.ok) throw new Error("Načtení legendy: " + await r.text());
+    const rows = await r.json();
+    if (rows.length) {
+        legend = cloudRowsToLegend(rows);
+        localStorage.setItem("rozdelovnik_legend", JSON.stringify(legend));
+    } else {
+        await saveLegendToCloudNow();
+    }
+    cloudLegendReady = true;
+    setCloudStatus("Online • legenda synchronizována");
+    if (document.getElementById("legendPage") && !document.getElementById("legendPage").classList.contains("hidden")) renderLegend("legendPageContent");
+    if (currentMonth !== null) renderTable();
+}
+
+async function saveLegendToCloudNow() {
+    if (!cloudSession || !Array.isArray(legend)) return;
+    if (cloudLegendSaving) { cloudLegendSavePending = true; return; }
+    cloudLegendSaving = true;
+    setCloudStatus("Ukládám legendu…");
+    try {
+        let r = await cloudFetch("shift_legend?id=gt.0", {method:"DELETE", headers:{"Prefer":"return=minimal"}});
+        if (!r.ok) throw new Error(await r.text());
+        const rows = legendToCloudRows(legend);
+        if (rows.length) {
+            r = await cloudFetch("shift_legend", {method:"POST", headers:{"Prefer":"return=minimal"}, body:JSON.stringify(rows)});
+            if (!r.ok) throw new Error(await r.text());
+        }
+        setCloudStatus("Online • uloženo");
+    } catch(e) {
+        console.error(e); setCloudStatus("Chyba ukládání legendy");
+    } finally {
+        cloudLegendSaving = false;
+        if (cloudLegendSavePending) { cloudLegendSavePending = false; saveLegendToCloudNow(); }
+    }
+}
+
+function queueLegendCloudSave() {
+    if (!cloudLegendReady || !cloudSession) return;
+    clearTimeout(cloudLegendSaveTimer);
+    cloudLegendSaveTimer = setTimeout(saveLegendToCloudNow, 250);
+}
+
+
+function workersToCloudRows(items) {
+    return items.map(function(worker, i) {
+        return {
+            id: String(worker.id || generateWorkerId()),
+            name: String(worker.name || ""),
+            code_d: String(worker.d || ""),
+            code_rh: String(worker.rh || ""),
+            code_ang: String(worker.ang || ""),
+            code_dholiday: String(worker.dHoliday || ""),
+            color: String(worker.color || getWorkerColor(worker, i) || "#ffffff"),
+            sort_order: i,
+            active: true,
+            updated_at: new Date().toISOString()
+        };
+    });
+}
+
+function cloudRowsToWorkers(rows) {
+    const localById = {};
+    (Array.isArray(workers) ? workers : []).forEach(function(w) { localById[w.id] = w; });
+    return rows.filter(function(row) { return row.active !== false; }).map(function(row) {
+        const old = localById[row.id] || {};
+        return normalizeWorker({
+            id: row.id,
+            name: row.name || "",
+            d: row.code_d || "",
+            rh: row.code_rh || "",
+            ang: row.code_ang || "",
+            dHoliday: row.code_dholiday || "",
+            dRhFund: old.dRhFund == null ? 6.8 : old.dRhFund,
+            color: row.color || ""
+        });
+    });
+}
+
+async function loadWorkersFromCloud() {
+    setCloudStatus("Načítám pracovníky…");
+    const r = await cloudFetch("workers?select=*&active=eq.true&order=sort_order.asc,id.asc", {method:"GET"});
+    if (!r.ok) throw new Error("Načtení pracovníků: " + await r.text());
+    const rows = await r.json();
+    if (rows.length) {
+        workers = cloudRowsToWorkers(rows);
+        localStorage.setItem("rozdelovnik_workers", JSON.stringify(workers));
+    } else {
+        await saveWorkersToCloudNow();
+    }
+    cloudWorkersReady = true;
+    setCloudStatus("Online • legenda a pracovníci synchronizováni");
+    if (document.getElementById("workersPage") && !document.getElementById("workersPage").classList.contains("hidden")) renderWorkersManagement();
+    if (currentMonth !== null) renderTable();
+    if (typeof renderVacationPlanning === "function" && document.getElementById("vacationPage") && !document.getElementById("vacationPage").classList.contains("hidden")) renderVacationPlanning();
+}
+
+async function saveWorkersToCloudNow() {
+    if (!cloudSession || !Array.isArray(workers)) return;
+    if (cloudWorkersSaving) { cloudWorkersSavePending = true; return; }
+    cloudWorkersSaving = true;
+    setCloudStatus("Ukládám pracovníky…");
+    try {
+        const rows = workersToCloudRows(workers);
+        if (rows.length) {
+            let r = await cloudFetch("workers?on_conflict=id", {
+                method:"POST",
+                headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+                body:JSON.stringify(rows)
+            });
+            if (!r.ok) throw new Error(await r.text());
+        }
+        // Pracovníky, kteří už v aktuálním seznamu nejsou, pouze deaktivujeme.
+        const activeIds = new Set(workers.map(function(w){ return String(w.id); }));
+        let r = await cloudFetch("workers?select=id&active=eq.true", {method:"GET"});
+        if (!r.ok) throw new Error(await r.text());
+        const cloudRows = await r.json();
+        for (const row of cloudRows) {
+            if (!activeIds.has(String(row.id))) {
+                r = await cloudFetch("workers?id=eq." + encodeURIComponent(row.id), {
+                    method:"PATCH",
+                    headers:{"Prefer":"return=minimal"},
+                    body:JSON.stringify({active:false, updated_at:new Date().toISOString()})
+                });
+                if (!r.ok) throw new Error(await r.text());
+            }
+        }
+        setCloudStatus("Online • uloženo");
+    } catch(e) {
+        console.error(e); setCloudStatus("Chyba ukládání pracovníků");
+    } finally {
+        cloudWorkersSaving = false;
+        if (cloudWorkersSavePending) { cloudWorkersSavePending = false; saveWorkersToCloudNow(); }
+    }
+}
+
+function queueWorkersCloudSave() {
+    if (!cloudWorkersReady || !cloudSession) return;
+    clearTimeout(cloudWorkersSaveTimer);
+    cloudWorkersSaveTimer = setTimeout(saveWorkersToCloudNow, 250);
+}
+
+
+async function loadPeriodsFromCloud() {
+    setCloudStatus("Načítám období…");
+    const r = await cloudFetch("month_settings?select=*&order=month.asc", {method:"GET"});
+    if (!r.ok) throw new Error("Načtení období: " + await r.text());
+    const rows = await r.json();
+    if (rows.length) {
+        const weeks = Array(12).fill(4);
+        rows.forEach(row => { if (row.month >= 1 && row.month <= 12) weeks[row.month-1] = Math.max(1, Math.min(8, Number(row.weeks)||4)); });
+        const jan = rows.find(row => row.month === 1);
+        periodSetup = { startDate: (jan && jan.start_date) || YEAR+"-01-01", weeks };
+        localStorage.setItem("rozdelovnik_period_setup", JSON.stringify(periodSetup));
+        recalculateMonthPeriods();
+    } else {
+        await savePeriodsToCloudNow(true);
+    }
+    cloudPeriodsReady = true;
+    if (typeof renderMonths === "function") renderMonths();
+    if (typeof renderVacationPlanner === "function") renderVacationPlanner();
+    setCloudStatus("Online • období načteno");
+}
+
+async function savePeriodsToCloudNow(force) {
+    if (!cloudSession || !periodSetup) return;
+    if (!force && !cloudPeriodsReady) return;
+    if (cloudPeriodsSaving) { cloudPeriodsSavePending = true; return; }
+    cloudPeriodsSaving = true;
+    try {
+        recalculateMonthPeriods();
+        const rows = Array.from({length:12}, (_,i) => ({
+            month:i+1,
+            weeks:Math.max(1,Math.min(8,Number(periodSetup.weeks[i])||4)),
+            start_date:monthPeriods[i].from,
+            end_date:monthPeriods[i].to,
+            updated_at:new Date().toISOString()
+        }));
+        setCloudStatus("Ukládám období…");
+        const r = await cloudFetch("month_settings?on_conflict=month", {
+            method:"POST",
+            headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+            body:JSON.stringify(rows)
+        });
+        if (!r.ok) throw new Error(await r.text());
+        setCloudStatus("Online • uloženo");
+    } catch(e) { console.error(e); setCloudStatus("Chyba ukládání období"); }
+    finally {
+        cloudPeriodsSaving = false;
+        if (cloudPeriodsSavePending) { cloudPeriodsSavePending = false; savePeriodsToCloudNow(false); }
+    }
+}
+
+function queuePeriodsCloudSave() {
+    if (!cloudPeriodsReady || !cloudSession) return;
+    clearTimeout(cloudPeriodsSaveTimer);
+    cloudPeriodsSaveTimer = setTimeout(() => savePeriodsToCloudNow(false), 250);
+}
+
+
+async function loadVacationWeekSettingsFromCloud() {
+    setCloudStatus("Načítám VV a KOEF…");
+    const r = await cloudFetch("vacation_week_settings?select=*&order=month.asc,week_index.asc", {method:"GET"});
+    if (!r.ok) throw new Error("Načtení VV/KOEF: " + await r.text());
+    const rows = await r.json();
+    if (rows.length) {
+        vacationVV = {};
+        vacationKoef = {};
+        rows.forEach(function(row) {
+            const key = vacationWeekKey(Number(row.month)-1, Number(row.week_index));
+            vacationVV[key] = Math.max(0, Math.min(VACATION_ROWS, Number(row.vv)||0));
+            vacationKoef[key] = row.koef == null ? "" : String(row.koef);
+        });
+        saveData("rozdelovnik_vacation_vv", vacationVV);
+        saveData("rozdelovnik_vacation_koef", vacationKoef);
+    } else {
+        await saveVacationWeekSettingsToCloudNow(true);
+    }
+    cloudVacationWeekReady = true;
+    if (typeof renderVacationPlanning === "function" && document.getElementById("vacationPage") && !document.getElementById("vacationPage").classList.contains("hidden")) renderVacationPlanning();
+    setCloudStatus("Online • VV a KOEF synchronizovány");
+}
+
+async function saveVacationWeekSettingsToCloudNow(force) {
+    if (!cloudSession) return;
+    if (!force && !cloudVacationWeekReady) return;
+    if (cloudVacationWeekSaving) { cloudVacationWeekSavePending = true; return; }
+    cloudVacationWeekSaving = true;
+    setCloudStatus("Ukládám VV a KOEF…");
+    try {
+        const rows = [];
+        for (let month=0; month<12; month++) {
+            const weeks = getMonthWeeks(month);
+            for (let wi=0; wi<weeks.length; wi++) {
+                const key = vacationWeekKey(month, wi);
+                rows.push({
+                    month: month+1,
+                    week_index: wi,
+                    vv: Math.max(0, Math.min(VACATION_ROWS, Number(vacationVV[key])||0)),
+                    koef: String(vacationKoef[key] || ""),
+                    updated_at: new Date().toISOString()
+                });
+            }
+        }
+        let r = await cloudFetch("vacation_week_settings?id=gt.0", {method:"DELETE", headers:{"Prefer":"return=minimal"}});
+        if (!r.ok) throw new Error(await r.text());
+        if (rows.length) {
+            r = await cloudFetch("vacation_week_settings", {method:"POST", headers:{"Prefer":"return=minimal"}, body:JSON.stringify(rows)});
+            if (!r.ok) throw new Error(await r.text());
+        }
+        setCloudStatus("Online • uloženo");
+    } catch(e) { console.error(e); setCloudStatus("Chyba ukládání VV/KOEF"); }
+    finally {
+        cloudVacationWeekSaving = false;
+        if (cloudVacationWeekSavePending) { cloudVacationWeekSavePending = false; saveVacationWeekSettingsToCloudNow(false); }
+    }
+}
+
+function queueVacationWeekCloudSave() {
+    if (!cloudVacationWeekReady || !cloudSession) return;
+    clearTimeout(cloudVacationWeekSaveTimer);
+    cloudVacationWeekSaveTimer = setTimeout(function(){ saveVacationWeekSettingsToCloudNow(false); }, 250);
+}
+
+
+function findVacationMonthForDate(date) {
+    const key = makeDateKey(date);
+    for (let month=0; month<12; month++) {
+        const period = getPeriod(month);
+        if (key >= period.from && key <= period.to) return month;
+    }
+    return null;
+}
+
+async function loadVacationPlanFromCloud() {
+    setCloudStatus("Načítám plán dovolených…");
+    const r = await cloudFetch("vacation_plan?select=*&order=plan_date.asc,row_number.asc", {method:"GET"});
+    if (!r.ok) throw new Error("Načtení plánu dovolených: " + await r.text());
+    const rows = await r.json();
+    if (rows.length) {
+        vacationPlan = {};
+        rows.forEach(function(row) {
+            const date = parseDateKey(String(row.plan_date));
+            if (!date) return;
+            const month = findVacationMonthForDate(date);
+            const zeroRow = Number(row.row_number) - 1;
+            if (month === null || zeroRow < 0 || zeroRow >= VACATION_ROWS) return;
+            vacationPlan[vacationCellKey(month, zeroRow, date)] = String(row.code || "");
+        });
+        saveData("rozdelovnik_vacation_plan", vacationPlan);
+    } else {
+        await saveVacationPlanToCloudNow(true);
+    }
+    cloudVacationPlanReady = true;
+    if (typeof renderVacationPlanning === "function" && document.getElementById("vacationPage") && !document.getElementById("vacationPage").classList.contains("hidden")) renderVacationPlanning();
+    setCloudStatus("Online • plán dovolených synchronizován");
+}
+
+async function saveVacationPlanToCloudNow(force) {
+    if (!cloudSession) throw new Error("Nejste přihlášen.");
+    if (!force && !cloudVacationPlanReady) return;
+    if (cloudVacationPlanSaving) { cloudVacationPlanSavePending = true; return; }
+    cloudVacationPlanSaving = true;
+    try {
+        const entries = getVacationCodeEntries();
+        const rows = [];
+        Object.keys(vacationPlan || {}).forEach(function(key) {
+            const code = String(vacationPlan[key] || "").trim();
+            if (!code) return;
+            const parts = key.split("_");
+            if (parts.length < 3) return;
+            const row = Number(parts[1]);
+            const dateKey = parts.slice(2).join("_");
+            const entry = entries.find(function(e){ return e.code.toLocaleLowerCase("cs") === code.toLocaleLowerCase("cs"); });
+            if (!entry || !entry.worker || !entry.worker.id) throw new Error("Nelze přiřadit pracovníka ke kódu " + code + ".");
+            rows.push({
+                plan_date: dateKey,
+                row_number: row + 1,
+                worker_id: String(entry.worker.id),
+                code: code,
+                updated_at: new Date().toISOString()
+            });
+        });
+
+        // Neděláme destruktivní DELETE celé tabulky. Nejdřív uložíme/aktualizujeme lokální řádky.
+        if (rows.length) {
+            const r = await cloudFetch("vacation_plan?on_conflict=plan_date,row_number", {
+                method:"POST",
+                headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+                body:JSON.stringify(rows)
+            });
+            if (!r.ok) throw new Error("Zápis plánu dovolených: " + await r.text());
+        }
+
+        // Ruční Uložit zároveň ověří, že Supabase uložené řádky skutečně vrací.
+        if (force) {
+            const verify = await cloudFetch("vacation_plan?select=plan_date,row_number,worker_id,code", {method:"GET"});
+            if (!verify.ok) throw new Error("Kontrola plánu dovolených: " + await verify.text());
+            const cloudRows = await verify.json();
+            for (const row of rows) {
+                const found = cloudRows.some(function(c) {
+                    return String(c.plan_date) === row.plan_date && Number(c.row_number) === row.row_number &&
+                           String(c.worker_id) === row.worker_id && String(c.code) === row.code;
+                });
+                if (!found) throw new Error("Supabase nepotvrdil uložení " + row.code + " pro " + row.plan_date + ".");
+            }
+        }
+        setCloudStatus("Online • uloženo");
+    } catch(e) {
+        console.error("Uložení plánu dovolených:", e);
+        setCloudStatus("Chyba ukládání plánu dovolených");
+        throw e;
+    } finally {
+        cloudVacationPlanSaving = false;
+        if (cloudVacationPlanSavePending) { cloudVacationPlanSavePending = false; saveVacationPlanToCloudNow(false).catch(console.error); }
+    }
+}
+
+function queueVacationPlanCloudSave() {
+    if (!cloudVacationPlanReady || !cloudSession) return;
+    clearTimeout(cloudVacationPlanSaveTimer);
+    cloudVacationPlanSaveTimer = setTimeout(function(){ saveVacationPlanToCloudNow(false); }, 250);
+}
+
+/* Ukládání jedné buňky plánu dovolených.
+   Je záměrně atomické: nepřepisuje celý plán a je proto vhodné i pro více uživatelů. */
+async function saveVacationCellToCloud(date, row, entry) {
+    if (!cloudVacationPlanReady || !cloudSession) return false;
+    const dateKey = makeDateKey(date);
+    try {
+        let r;
+        if (!entry) {
+            r = await cloudFetch(
+                "vacation_plan?plan_date=eq." + encodeURIComponent(dateKey) + "&row_number=eq." + (row + 1),
+                {method:"DELETE", headers:{"Prefer":"return=minimal"}}
+            );
+        } else {
+            r = await cloudFetch("vacation_plan?on_conflict=plan_date,row_number", {
+                method:"POST",
+                headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+                body:JSON.stringify({
+                    plan_date: dateKey,
+                    row_number: row + 1,
+                    worker_id: String(entry.worker.id),
+                    code: String(entry.code),
+                    updated_at: new Date().toISOString()
+                })
+            });
+        }
+        if (!r.ok) throw new Error(await r.text());
+
+        // Ověření konkrétní buňky po zápisu.
+        const check = await cloudFetch(
+            "vacation_plan?select=plan_date,row_number,worker_id,code&plan_date=eq." + encodeURIComponent(dateKey) + "&row_number=eq." + (row + 1),
+            {method:"GET"}
+        );
+        if (!check.ok) throw new Error(await check.text());
+        const saved = await check.json();
+        if (entry) {
+            if (!saved.length || String(saved[0].worker_id) !== String(entry.worker.id) || String(saved[0].code) !== String(entry.code)) {
+                throw new Error("Supabase nepotvrdil uloženou zkratku.");
+            }
+        } else if (saved.length) {
+            throw new Error("Supabase nepotvrdil smazání zkratky.");
+        }
+        setCloudStatus("Online • uloženo");
+        return true;
+    } catch(e) {
+        console.error("Uložení dovolené do cloudu:", e);
+        setCloudStatus("Chyba ukládání dovolené");
+        return false;
+    }
+}
+
+
+/* =====================================================
+   CLOUD – MĚSÍČNÍ ROZDĚLOVNÍK
+   V databázi ukládáme typ směny (např. "6", "D", "RH"),
+   nikoliv interní ID legendy. ID legendy se může při synchronizaci změnit.
+===================================================== */
+
+function scheduleKeyParts(key) {
+    const text = String(key || "");
+    if (!/^\d{4}-\d{2}-\d{2}_/.test(text)) return null;
+    return { date: text.slice(0, 10), workerId: text.slice(11) };
+}
+
+function scheduleValueToAssignment(value) {
+    const item = findLegendItem(value);
+    return item ? String(item.type || "").trim() : "";
+}
+
+function assignmentToScheduleValue(assignment) {
+    return findLegendIdByType(String(assignment || "").trim());
+}
+
+function scheduleToCloudRows() {
+    const rows = [];
+    Object.keys(schedule || {}).forEach(function(key) {
+        const parts = scheduleKeyParts(key);
+        if (!parts || !parts.workerId) return;
+        const assignment = scheduleValueToAssignment(schedule[key]);
+        if (!assignment) return;
+        rows.push({
+            plan_date: parts.date,
+            worker_id: parts.workerId,
+            assignment: assignment,
+            source: "manual",
+            updated_at: new Date().toISOString()
+        });
+    });
+    return rows;
+}
+
+async function loadScheduleFromCloud() {
+    setCloudStatus("Načítám měsíční rozdělovník…");
+    const r = await cloudFetch("monthly_schedule?select=*&order=plan_date.asc,worker_id.asc", {method:"GET"});
+    if (!r.ok) throw new Error("Načtení měsíčního rozdělovníku: " + await r.text());
+    const rows = await r.json();
+    if (rows.length) {
+        schedule = {};
+        rows.forEach(function(row) {
+            const dateKey = String(row.plan_date || "");
+            const workerId = String(row.worker_id || "");
+            const legendId = assignmentToScheduleValue(row.assignment);
+            if (dateKey && workerId && legendId) schedule[dateKey + "_" + workerId] = legendId;
+        });
+        localStorage.setItem("rozdelovnik_schedule", JSON.stringify(schedule));
+    } else {
+        await saveScheduleToCloudNow(true);
+    }
+    cloudScheduleReady = true;
+    if (currentMonth !== null) renderTable();
+    setCloudStatus("Online • měsíční rozdělovník synchronizován");
+}
+
+async function saveScheduleToCloudNow(force) {
+    if (!cloudSession) throw new Error("Nejste přihlášen.");
+    if (!force && !cloudScheduleReady) return;
+    if (cloudScheduleSaving) { cloudScheduleSavePending = true; return; }
+    cloudScheduleSaving = true;
+    try {
+        const rows = scheduleToCloudRows();
+        if (rows.length) {
+            const r = await cloudFetch("monthly_schedule?on_conflict=plan_date,worker_id", {
+                method:"POST",
+                headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+                body:JSON.stringify(rows)
+            });
+            if (!r.ok) throw new Error("Zápis měsíčního rozdělovníku: " + await r.text());
+        }
+        if (force) {
+            const verify = await cloudFetch("monthly_schedule?select=plan_date,worker_id,assignment", {method:"GET"});
+            if (!verify.ok) throw new Error("Kontrola měsíčního rozdělovníku: " + await verify.text());
+            const cloudRows = await verify.json();
+            for (const row of rows) {
+                const found = cloudRows.some(function(c) {
+                    return String(c.plan_date) === row.plan_date && String(c.worker_id) === row.worker_id && String(c.assignment) === row.assignment;
+                });
+                if (!found) throw new Error("Supabase nepotvrdil směnu " + row.assignment + " pro " + row.plan_date + ".");
+            }
+        }
+        setCloudStatus("Online • uloženo");
+    } catch(e) {
+        console.error("Uložení měsíčního rozdělovníku:", e);
+        setCloudStatus("Chyba ukládání měsíčního rozdělovníku");
+        throw e;
+    } finally {
+        cloudScheduleSaving = false;
+        if (cloudScheduleSavePending) {
+            cloudScheduleSavePending = false;
+            saveScheduleToCloudNow(false).catch(console.error);
+        }
+    }
+}
+
+function queueScheduleCloudSave() {
+    if (!cloudScheduleReady || !cloudSession) return;
+    clearTimeout(cloudScheduleSaveTimer);
+    cloudScheduleSaveTimer = setTimeout(function(){ saveScheduleToCloudNow(false).catch(console.error); }, 250);
+}
+
+async function saveScheduleCellToCloud(date, workerId, legendId, source) {
+    if (!cloudScheduleReady || !cloudSession) return false;
+    const dateKey = typeof date === "string" ? date : makeDateKey(date);
+    try {
+        let r;
+        if (!legendId) {
+            r = await cloudFetch(
+                "monthly_schedule?plan_date=eq." + encodeURIComponent(dateKey) + "&worker_id=eq." + encodeURIComponent(workerId),
+                {method:"DELETE", headers:{"Prefer":"return=minimal"}}
+            );
+        } else {
+            const assignment = scheduleValueToAssignment(legendId);
+            if (!assignment) throw new Error("Směna není v legendě.");
+            r = await cloudFetch("monthly_schedule?on_conflict=plan_date,worker_id", {
+                method:"POST",
+                headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+                body:JSON.stringify({
+                    plan_date: dateKey,
+                    worker_id: String(workerId),
+                    assignment: assignment,
+                    source: source || "manual",
+                    updated_at: new Date().toISOString()
+                })
+            });
+        }
+        if (!r.ok) throw new Error(await r.text());
+        setCloudStatus("Online • uloženo");
+        return true;
+    } catch(e) {
+        console.error("Uložení směny do cloudu:", e);
+        setCloudStatus("Chyba ukládání měsíčního rozdělovníku");
+        return false;
+    }
+}
+
+async function initCloud() {
+    const overlay = document.getElementById("cloudLoginOverlay");
+    const status = document.getElementById("cloudStatusBar");
+    try { cloudSession = JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY) || "null"); } catch(e) { cloudSession = null; }
+    if (cloudSession && cloudSession.refresh_token && await cloudRefreshSession()) {
+        overlay.classList.add("hidden"); status.classList.remove("hidden");
+        try { await loadLegendFromCloud(); await loadWorkersFromCloud(); await loadPeriodsFromCloud(); await loadVacationWeekSettingsFromCloud(); await loadVacationPlanFromCloud(); await loadScheduleFromCloud(); } catch(e) { console.error(e); setCloudStatus("Chyba připojení"); }
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    document.getElementById("cloudLoginBtn").addEventListener("click", async function() {
+        const error = document.getElementById("cloudLoginError"); error.textContent = "";
+        try {
+            await cloudLogin(document.getElementById("cloudEmail").value.trim(), document.getElementById("cloudPassword").value);
+            document.getElementById("cloudLoginOverlay").classList.add("hidden");
+            document.getElementById("cloudStatusBar").classList.remove("hidden");
+            await loadLegendFromCloud();
+            await loadWorkersFromCloud();
+            await loadPeriodsFromCloud();
+            await loadVacationWeekSettingsFromCloud();
+            await loadVacationPlanFromCloud();
+            await loadScheduleFromCloud();
+        } catch(e) { error.textContent = e.message; }
+    });
+    document.getElementById("cloudPassword").addEventListener("keydown", function(e) { if (e.key === "Enter") document.getElementById("cloudLoginBtn").click(); });
+    const manualSaveBtn = document.getElementById("cloudManualSaveBtn");
+    if (manualSaveBtn) manualSaveBtn.addEventListener("click", manualCloudSave);
+    document.getElementById("cloudLogoutBtn").addEventListener("click", function() {
+        cloudSession = null; cloudLegendReady = false; cloudWorkersReady = false; cloudPeriodsReady = false; cloudVacationWeekReady = false; cloudVacationPlanReady = false; cloudScheduleReady = false; localStorage.removeItem(CLOUD_SESSION_KEY); location.reload();
+    });
+    initCloud();
+});
+
+
+
+/* =====================================================
+   ZÁKLADNÍ ÚDAJE
+===================================================== */
+
+const YEAR = 2026;
+
+const monthNames = [
+    "Leden",
+    "Únor",
+    "Březen",
+    "Duben",
+    "Květen",
+    "Červen",
+    "Červenec",
+    "Srpen",
+    "Září",
+    "Říjen",
+    "Listopad",
+    "Prosinec"
+];
+
+const dayNames = [
+    "ne",
+    "po",
+    "út",
+    "st",
+    "čt",
+    "pá",
+    "so"
+];
+
+
+/* =====================================================
+   SVÁTKY ČR 2026
+===================================================== */
+
+const holidays = [
+    "2026-01-01",
+    "2026-04-03",
+    "2026-04-06",
+    "2026-05-01",
+    "2026-05-08",
+    "2026-07-05",
+    "2026-07-06",
+    "2026-09-28",
+    "2026-10-28",
+    "2026-11-17",
+    "2026-12-24",
+    "2026-12-25",
+    "2026-12-26"
+];
+
+
+/* =====================================================
+   LOCAL STORAGE
+===================================================== */
+
+function loadData(key, fallback) {
+
+    try {
+
+        const value =
+            localStorage.getItem(key);
+
+        if (!value) {
+            return fallback;
+        }
+
+        return JSON.parse(value);
+
+    } catch (error) {
+
+        console.warn(
+            "Nepodařilo se načíst data:",
+            key
+        );
+
+        return fallback;
+    }
+}
+
+
+function saveData(key, value) {
+
+    try {
+
+        localStorage.setItem(
+            key,
+            JSON.stringify(value)
+        );
+
+        if (key === "rozdelovnik_legend" && typeof queueLegendCloudSave === "function") {
+            queueLegendCloudSave();
+        }
+        if (key === "rozdelovnik_workers" && typeof queueWorkersCloudSave === "function") {
+            queueWorkersCloudSave();
+        }
+        if ((key === "rozdelovnik_period_setup" || key === "rozdelovnik_periods") && typeof queuePeriodsCloudSave === "function") {
+            queuePeriodsCloudSave();
+        }
+        if (key === "rozdelovnik_schedule" && typeof queueScheduleCloudSave === "function") {
+            queueScheduleCloudSave();
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Nepodařilo se uložit data:",
+            error
+        );
+    }
+}
+
+
+/* =====================================================
+   GENEROVÁNÍ ID PRACOVNÍKA
+===================================================== */
+
+function generateWorkerId() {
+
+    return (
+        "worker_" +
+        Date.now() +
+        "_" +
+        Math.random()
+            .toString(36)
+            .substring(2, 9)
+    );
+}
+
+
+/* =====================================================
+   NORMALIZACE PRACOVNÍKA
+===================================================== */
+
+/* =====================================================
+   AUTOMATICKÉ KÓDY PRACOVNÍKA
+===================================================== */
+
+const workerColorPalette = [
+    "#b6d7a8", // pracovník 1
+    "#6fa8dc", // pracovník 2
+    "#ead1dc", // pracovník 3
+    "#00ffff", // pracovník 4
+    "#f7981d", // pracovník 5
+    "#cfe2f3", // pracovník 6
+    "#e06666", // pracovník 7
+    "#00ff00", // pracovník 8
+    "#6aa84f", // pracovník 9
+    "#f9cb9c", // pracovník 10
+    "#c27ba0", // pracovník 11
+    "#674ea7", // pracovník 12
+    "#45818e", // pracovník 13
+    "#cc0000", // pracovník 14
+    "#ffd966"  // pracovník 15
+];
+
+function getWorkerColor(worker, index) {
+    if (worker.color) return worker.color;
+    const safeIndex = Number.isInteger(index) ? index : Math.max(0, workers.indexOf(worker));
+    worker.color = workerColorPalette[safeIndex % workerColorPalette.length];
+    return worker.color;
+}
+
+function getReadableTextColor(background) {
+    const hex = String(background || "").replace("#", "");
+    if (!/^[0-9a-fA-F]{6}$/.test(hex)) return "#222";
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    return (r * 299 + g * 587 + b * 114) / 1000 < 145 ? "#fff" : "#222";
+}
+
+function applyWorkerColors(element, worker, index) {
+    const background = getWorkerColor(worker, index);
+    element.style.background = background;
+    element.style.color = getReadableTextColor(background);
+}
+
+function updateWorkerDerivedCodes(worker) {
+
+    const base =
+        String(worker.d === undefined ? "" : worker.d).trim();
+
+
+    if (base === "") {
+
+        worker.rh = "";
+        worker.ang = "";
+        worker.dHoliday = "";
+
+        return;
+    }
+
+
+    worker.rh =
+        base + "R";
+
+    worker.ang =
+        base + "a";
+
+    worker.dHoliday =
+        base + "s";
+}
+
+
+/*
+   Každý pracovník má trvalé ID.
+
+   D, RH, Ang a D svátek jsou samostatné
+   údaje pracovníka a při přesunu se přesunou
+   společně s ním.
+*/
+
+function normalizeWorker(worker, index) {
+
+    if (typeof worker === "string") {
+
+        return {
+
+            id:
+                "worker_legacy_" +
+                index +
+                "_" +
+                Date.now(),
+
+            name:
+                worker,
+
+            d: "",
+            rh: "",
+            ang: "",
+            dHoliday: "",
+            dRhFund: 6.8,
+            color: ""
+
+        };
+    }
+
+
+    if (
+        worker &&
+        worker.id
+    ) {
+
+        const normalizedWorker = {
+
+            id:
+                worker.id,
+
+            name:
+                worker.name !== undefined
+                    ? String(worker.name)
+                    : "Pracovník " + (index + 1),
+
+            d:
+                worker.d !== undefined
+                    ? worker.d
+                    : "",
+
+            rh:
+                worker.rh !== undefined
+                    ? worker.rh
+                    : "",
+
+            ang:
+                worker.ang !== undefined
+                    ? worker.ang
+                    : "",
+
+            dHoliday:
+                worker.dHoliday !== undefined
+                    ? worker.dHoliday
+                    : "",
+
+            dRhFund:
+                Number.isFinite(Number(worker.dRhFund))
+                    ? Number(worker.dRhFund)
+                    : 6.8,
+
+            color: worker.color || ""
+
+        };
+
+
+        updateWorkerDerivedCodes(normalizedWorker);
+
+        return normalizedWorker;
+    }
+
+
+    return {
+
+        id:
+            generateWorkerId(),
+
+        name:
+            "Pracovník " + (index + 1),
+
+        d: "",
+        rh: "",
+        ang: "",
+        dHoliday: "",
+        dRhFund: 6.8,
+        color: ""
+
+    };
+}
+
+
+/* =====================================================
+   PRACOVNÍCI
+===================================================== */
+
+const workersRaw =
+    loadData(
+        "rozdelovnik_workers",
+        []
+    );
+
+
+let workers =
+    Array.isArray(workersRaw)
+        ? workersRaw.map(normalizeWorker)
+        : [];
+
+
+if (workers.length === 0) {
+
+    for (
+        let i = 1;
+        i <= 15;
+        i++
+    ) {
+
+        workers.push({
+
+            id:
+                generateWorkerId(),
+
+            name:
+                "Pracovník " + i,
+
+            d: "",
+            rh: "",
+            ang: "",
+            dHoliday: "",
+            dRhFund: 6.8
+
+        });
+    }
+}
+
+
+const WORKER_COLOR_PALETTE_VERSION = "user-palette-v3";
+if (localStorage.getItem("rozdelovnik_worker_color_palette") !== WORKER_COLOR_PALETTE_VERSION) {
+    workers.forEach(function(worker, index) {
+        worker.color = workerColorPalette[index % workerColorPalette.length];
+    });
+    localStorage.setItem("rozdelovnik_worker_color_palette", WORKER_COLOR_PALETTE_VERSION);
+} else {
+    workers.forEach(function(worker, index) { getWorkerColor(worker, index); });
+}
+
+saveData(
+    "rozdelovnik_workers",
+    workers
+);
+
+
+/* =====================================================
+   PŮVODNÍ DATA
+===================================================== */
+
+const oldSchedule =
+    loadData(
+        "rozdelovnik_schedule",
+        {}
+    );
+
+
+const oldOvertimeData =
+    loadData(
+        "rozdelovnik_overtime",
+        {}
+    );
+
+
+const oldManualStatistics =
+    loadData(
+        "rozdelovnik_manual_statistics",
+        {}
+    );
+
+
+/* =====================================================
+   MIGRACE STARÉHO FORMÁTU
+===================================================== */
+
+function migrateIndexedData(data) {
+
+    const result = {};
+
+
+    Object.keys(data).forEach(
+        function(key) {
+
+            const match =
+                key.match(
+                    /^(.+)_(\d+)$/
+                );
+
+
+            if (!match) {
+
+                result[key] =
+                    data[key];
+
+                return;
+            }
+
+
+            const date =
+                match[1];
+
+            const index =
+                Number(
+                    match[2]
+                );
+
+
+            if (
+                workers[index]
+            ) {
+
+                const newKey =
+                    date +
+                    "_" +
+                    workers[index].id;
+
+
+                result[newKey] =
+                    data[key];
+            }
+
+        }
+    );
+
+
+    return result;
+}
+
+
+function hasIndexedKeys(data) {
+
+    return Object.keys(data).some(
+        function(key) {
+
+            return /_\d+$/.test(key);
+
+        }
+    );
+}
+
+
+let schedule =
+    hasIndexedKeys(oldSchedule)
+        ? migrateIndexedData(oldSchedule)
+        : oldSchedule;
+
+
+let overtimeData =
+    hasIndexedKeys(oldOvertimeData)
+        ? migrateIndexedData(oldOvertimeData)
+        : oldOvertimeData;
+
+
+/* =====================================================
+   MIGRACE RUČNÍ STATISTIKY
+===================================================== */
+
+function migrateManualStatisticsData(data) {
+
+    const result = {};
+
+
+    Object.keys(data).forEach(
+        function(month) {
+
+            const monthData =
+                data[month];
+
+
+            if (
+                !monthData ||
+                typeof monthData !== "object"
+            ) {
+
+                return;
+            }
+
+
+            result[month] = {};
+
+
+            Object.keys(monthData).forEach(
+                function(key) {
+
+                    /*
+                       Pokud je klíč už ID pracovníka,
+                       zachováme ho.
+                    */
+
+                    const existingWorker =
+                        workers.find(
+                            function(worker) {
+
+                                return worker.id === key;
+
+                            }
+                        );
+
+
+                    if (existingWorker) {
+
+                        result[month][key] =
+                            monthData[key];
+
+                        return;
+                    }
+
+
+                    /*
+                       Jinak zkusíme starý index.
+                    */
+
+                    if (
+                        /^\d+$/.test(key)
+                    ) {
+
+                        const index =
+                            Number(key);
+
+
+                        if (
+                            workers[index]
+                        ) {
+
+                            result[month][
+                                workers[index].id
+                            ] =
+                                monthData[key];
+                        }
+                    }
+
+                }
+            );
+
+        }
+    );
+
+
+    return result;
+}
+
+
+let manualStatistics =
+    migrateManualStatisticsData(
+        oldManualStatistics
+    );
+
+
+saveData(
+    "rozdelovnik_schedule",
+    schedule
+);
+
+saveData(
+    "rozdelovnik_overtime",
+    overtimeData
+);
+
+saveData(
+    "rozdelovnik_manual_statistics",
+    manualStatistics
+);
+
+
+/* =====================================================
+   OBDOBÍ
+===================================================== */
+
+let monthPeriods = loadData("rozdelovnik_periods", {});
+
+/* Verze 3: období se počítají souvisle od prvního data ledna.
+   U každého pracovního měsíce se zadává pouze počet týdnů. */
+let periodSetup = loadData("rozdelovnik_period_setup", null);
+
+function pad(number) {
+    return String(number).padStart(2, "0");
+}
+
+function dateToInput(date) {
+    return date.getFullYear()+"-"+pad(date.getMonth()+1)+"-"+pad(date.getDate());
+}
+
+function parseLocalDate(value) {
+    const p=String(value || "").split("-").map(Number);
+    if(p.length!==3 || !p[0] || !p[1] || !p[2]) return null;
+    return new Date(p[0],p[1]-1,p[2]);
+}
+
+function daysInclusive(from,to) {
+    const a=parseLocalDate(from), b=parseLocalDate(to);
+    if(!a || !b) return 28;
+    return Math.round((b-a)/86400000)+1;
+}
+
+function initPeriodSetup() {
+    if(periodSetup && periodSetup.startDate && Array.isArray(periodSetup.weeks) && periodSetup.weeks.length===12) return;
+    const jan=monthPeriods[0] || {from:YEAR+"-01-01",to:YEAR+"-01-31"};
+    const weeks=[];
+    for(let i=0;i<12;i++) {
+        const old=monthPeriods[i];
+        const days=old ? daysInclusive(old.from,old.to) : 28;
+        weeks.push(Math.max(1,Math.min(8,Math.round(days/7))));
+    }
+    periodSetup={startDate:jan.from || YEAR+"-01-01",weeks:weeks};
+    saveData("rozdelovnik_period_setup",periodSetup);
+}
+
+function recalculateMonthPeriods() {
+    initPeriodSetup();
+    let cursor=parseLocalDate(periodSetup.startDate) || new Date(YEAR,0,1);
+    const calculated={};
+    for(let month=0;month<12;month++) {
+        const weeks=Math.max(1,Math.min(8,Number(periodSetup.weeks[month])||4));
+        periodSetup.weeks[month]=weeks;
+        const from=new Date(cursor);
+        const to=new Date(cursor);
+        to.setDate(to.getDate()+weeks*7-1);
+        calculated[month]={from:dateToInput(from),to:dateToInput(to)};
+        cursor=new Date(to); cursor.setDate(cursor.getDate()+1);
+    }
+    monthPeriods=calculated;
+    saveData("rozdelovnik_period_setup",periodSetup);
+    saveData("rozdelovnik_periods",monthPeriods);
+}
+
+function getPeriod(month) {
+    recalculateMonthPeriods();
+    return monthPeriods[month];
+}
+
+initPeriodSetup();
+recalculateMonthPeriods();
+
+
+/* =====================================================
+   LEGENDA
+===================================================== */
+
+let legend =
+    loadData(
+        "rozdelovnik_legend",
+        null
+    );
+
+
+if (
+    !Array.isArray(legend) ||
+    legend.length === 0
+) {
+
+    legend = [
+
+        {
+            id: "6",
+            type: "6",
+            time: "06:00-14:00",
+            fpd: "",
+            description: "Denní směna",
+            shift: true
+        },
+
+        {
+            id: "14",
+            type: "14",
+            time: "14:00-24:00",
+            fpd: "",
+            description: "Odpolední směna",
+            shift: true
+        },
+
+        {
+            id: "19",
+            type: "19",
+            time: "19:30-07:30",
+            fpd: "",
+            description: "Noční směna",
+            shift: true
+        },
+
+        {
+            id: "C9",
+            type: "C9",
+            time: "07:00-19:00",
+            fpd: "",
+            description: "Denní C směna",
+            shift: true
+        },
+
+        {
+            id: "C7",
+            type: "C7",
+            time: "19:00-07:00",
+            fpd: "",
+            description: "Noční C směna",
+            shift: true
+        },
+
+        {
+            id: "D",
+            type: "D",
+            time: "",
+            fpd: "",
+            description: "Dovolená – 6,8 hodiny",
+            shift: false,
+            special: "D",
+            fixedHours: 6.8
+        },
+
+        {
+            id: "SL8",
+            type: "SL8",
+            time: "",
+            fpd: "",
+            description: "Sick leave – 8 hodin",
+            shift: false,
+            special: "V",
+            fixedHours: 8
+        },
+
+        {
+            id: "SL10",
+            type: "SL10",
+            time: "",
+            fpd: "",
+            description: "Sick leave – 10 hodin",
+            shift: false,
+            special: "V",
+            fixedHours: 10
+        },
+
+        {
+            id: "SL12",
+            type: "SL12",
+            time: "",
+            fpd: "",
+            description: "Sick leave – 12 hodin",
+            shift: false,
+            special: "V",
+            fixedHours: 12
+        }
+
+    ];
+
+
+    saveData(
+        "rozdelovnik_legend",
+        legend
+    );
+}
+
+
+/* =====================================================
+   AKTUÁLNÍ MĚSÍC
+===================================================== */
+
+let currentMonth = null;
+
+
+/* =====================================================
+   ČÍSLA
+===================================================== */
+
+function roundHours(value) {
+
+    return Math.round(
+        value * 100
+    ) / 100;
+}
+
+
+function formatHours(value) {
+
+    if (
+        value === null ||
+        value === undefined ||
+        !Number.isFinite(value)
+    ) {
+
+        return "0";
+    }
+
+
+    return String(
+        roundHours(value)
+    ).replace(
+        ".",
+        ","
+    );
+}
+
+
+/* =====================================================
+   ČAS
+===================================================== */
+
+function timeToMinutes(time) {
+
+    const parts =
+        String(time)
+            .trim()
+            .split(":");
+
+
+    if (
+        parts.length !== 2
+    ) {
+
+        return null;
+    }
+
+
+    const h =
+        Number(parts[0]);
+
+    const m =
+        Number(parts[1]);
+
+
+    if (
+        !Number.isFinite(h) ||
+        !Number.isFinite(m) ||
+        h < 0 ||
+        h > 24 ||
+        m < 0 ||
+        m > 59 ||
+        (h === 24 && m !== 0)
+    ) {
+
+        return null;
+    }
+
+
+    return h * 60 + m;
+}
+
+
+function parseTimeRange(value) {
+
+    if (
+        typeof value !== "string" ||
+        !value.includes("-")
+    ) {
+
+        return null;
+    }
+
+
+    const parts =
+        value.split("-");
+
+
+    if (
+        parts.length !== 2
+    ) {
+
+        return null;
+    }
+
+
+    const start =
+        timeToMinutes(
+            parts[0]
+        );
+
+    const end =
+        timeToMinutes(
+            parts[1]
+        );
+
+
+    if (
+        start === null ||
+        end === null
+    ) {
+
+        return null;
+    }
+
+
+    let duration =
+        end - start;
+
+
+    if (
+        duration <= 0
+    ) {
+
+        duration += 1440;
+    }
+
+
+    return {
+
+        start,
+        end,
+        duration
+
+    };
+}
+
+
+/* =====================================================
+   VÝPOČET SMĚNY
+===================================================== */
+
+function calculateShiftForDate(
+    timeRange,
+    date
+) {
+
+    const parsed =
+        parseTimeRange(
+            timeRange
+        );
+
+
+    if (!parsed) {
+
+        return {
+
+            duration: 0,
+            night: 0,
+            friday: 0,
+            saturday: 0,
+            sunday: 0,
+            holiday: 0
+
+        };
+    }
+
+
+    let duration = 0;
+    let night = 0;
+    let friday = 0;
+    let saturday = 0;
+    let sunday = 0;
+    let holiday = 0;
+
+
+    for (
+        let minute = 0;
+        minute < parsed.duration;
+        minute++
+    ) {
+
+        const absolute =
+            parsed.start + minute;
+
+
+        const dayOffset =
+            Math.floor(
+                absolute / 1440
+            );
+
+
+        const minuteOfDay =
+            absolute % 1440;
+
+
+        const currentDate =
+            new Date(date);
+
+
+        currentDate.setDate(
+            currentDate.getDate() +
+            dayOffset
+        );
+
+
+        const weekday =
+            currentDate.getDay();
+
+
+        const dateKey =
+            dateToInput(
+                currentDate
+            );
+
+
+        duration += 1 / 60;
+
+
+        /* Noční práce 22:00–06:00 */
+
+        if (
+            minuteOfDay >= 1320 ||
+            minuteOfDay < 360
+        ) {
+
+            night += 1 / 60;
+        }
+
+
+        /* Pátek */
+
+        if (
+            weekday === 5
+        ) {
+
+            friday += 1 / 60;
+        }
+
+
+        /* Sobota */
+
+        if (
+            weekday === 6
+        ) {
+
+            saturday += 1 / 60;
+        }
+
+
+        /* Neděle */
+
+        if (
+            weekday === 0
+        ) {
+
+            sunday += 1 / 60;
+        }
+
+
+        /* Státní svátek */
+
+        if (
+            holidays.includes(dateKey)
+        ) {
+
+            holiday += 1 / 60;
+        }
+
+    }
+
+
+    return {
+
+        duration:
+            roundHours(duration),
+
+        night:
+            roundHours(night),
+
+        friday:
+            roundHours(friday),
+
+        saturday:
+            roundHours(saturday),
+
+        sunday:
+            roundHours(sunday),
+
+        holiday:
+            roundHours(holiday)
+
+    };
+}
+
+
+/* =====================================================
+   DATUM
+===================================================== */
+
+function makeDateKey(date) {
+
+    return (
+        date.getFullYear() +
+        "-" +
+        pad(date.getMonth() + 1) +
+        "-" +
+        pad(date.getDate())
+    );
+}
+
+/* Bezpečné načtení YYYY-MM-DD jako lokálního data.
+   Nepoužíváme new Date("YYYY-MM-DD"), protože to prohlížeče mohou vyhodnotit jako UTC. */
+function parseDateKey(value) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+    if (!m) return null;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (d.getFullYear() !== Number(m[1]) || d.getMonth() !== Number(m[2]) - 1 || d.getDate() !== Number(m[3])) return null;
+    return d;
+}
+
+
+function formatDate(date) {
+
+    return (
+        date.getDate() +
+        "." +
+        pad(date.getMonth() + 1) +
+        "." +
+        date.getFullYear()
+    );
+}
+
+
+function getDates(
+    fromValue,
+    toValue
+) {
+
+    const result = [];
+
+
+    const from =
+        new Date(
+            fromValue + "T00:00:00"
+        );
+
+
+    const to =
+        new Date(
+            toValue + "T00:00:00"
+        );
+
+
+    if (
+        isNaN(from.getTime()) ||
+        isNaN(to.getTime()) ||
+        from > to
+    ) {
+
+        return result;
+    }
+
+
+    const current =
+        new Date(from);
+
+
+    while (
+        current <= to
+    ) {
+
+        result.push(
+            new Date(current)
+        );
+
+
+        current.setDate(
+            current.getDate() + 1
+        );
+
+    }
+
+
+    return result;
+}
+
+
+function getCurrentDates() {
+
+    const period =
+        getPeriod(currentMonth);
+
+
+    return getDates(
+        period.from,
+        period.to
+    );
+}
+
+
+/* =====================================================
+   LEGENDA – VYHLEDÁNÍ
+===================================================== */
+
+function findLegendItem(id) {
+
+    return legend.find(
+        function(item) {
+
+            return item.id === id;
+
+        }
+    );
+}
+
+
+/* =====================================================
+   KLÍČ PRACOVNÍKA
+===================================================== */
+
+function makeWorkerKey(
+    date,
+    workerId
+) {
+
+    return (
+        makeDateKey(date) +
+        "_" +
+        workerId
+    );
+}
+
+
+/* =====================================================
+   PŘESČAS
+===================================================== */
+
+function getOvertimeValue(
+    date,
+    workerId
+) {
+
+    const key =
+        makeWorkerKey(
+            date,
+            workerId
+        );
+
+
+    if (
+        overtimeData[key] === undefined
+    ) {
+
+        return 0;
+    }
+
+
+    return Number(
+        overtimeData[key]
+    ) || 0;
+}
+
+
+function setOvertimeValue(
+    date,
+    workerId,
+    value
+) {
+
+    const key =
+        makeWorkerKey(
+            date,
+            workerId
+        );
+
+
+    const numericValue =
+        Number(value) || 0;
+
+
+    if (
+        numericValue === 0
+    ) {
+
+        delete overtimeData[key];
+
+    } else {
+
+        overtimeData[key] =
+            numericValue;
+    }
+
+
+    saveData(
+        "rozdelovnik_overtime",
+        overtimeData
+    );
+}
+
+
+function calculateOvertime(
+    workerId,
+    dates
+) {
+
+    let total = 0;
+
+
+    dates.forEach(
+        function(date) {
+
+            total +=
+                getOvertimeValue(
+                    date,
+                    workerId
+                );
+
+        }
+    );
+
+
+    return roundHours(total);
+}
+
+
+/* =====================================================
+   STATISTIKA SMĚN
+===================================================== */
+
+function calculateStatistics(
+    workerId,
+    dates
+) {
+
+    let workedHours = 0;
+    let shiftCount = 0;
+
+    let weekendHours = 0;
+    let nightHours = 0;
+    let holidayHours = 0;
+
+    let daysD = 0;
+    let hoursD = 0;
+
+    let daysV = 0;
+    let hoursV = 0;
+
+
+    dates.forEach(
+        function(date) {
+
+            const key =
+                makeWorkerKey(
+                    date,
+                    workerId
+                );
+
+
+            const assignment =
+                schedule[key];
+
+
+            if (!assignment) {
+
+                return;
+            }
+
+
+            const item =
+                findLegendItem(
+                    assignment
+                );
+
+
+            if (!item) {
+
+                return;
+            }
+
+
+            /* DOVOLENÁ */
+
+            if (
+                item.special === "D"
+            ) {
+
+                daysD += 1;
+
+                const worker =
+                    workers.find(
+                        function(currentWorker) {
+                            return currentWorker.id === workerId;
+                        }
+                    );
+
+                const dRhFund =
+                    worker &&
+                    Number.isFinite(Number(worker.dRhFund))
+                        ? Number(worker.dRhFund)
+                        : 6.8;
+
+                hoursD += dRhFund;
+
+                return;
+            }
+
+
+            /* NEMOC */
+
+            if (
+                item.special === "V"
+            ) {
+
+                daysV += 1;
+
+
+                let sickHours =
+                    Number(
+                        item.fixedHours
+                    );
+
+
+                if (
+                    !Number.isFinite(
+                        sickHours
+                    )
+                ) {
+
+                    const match =
+                        String(item.type).match(
+                            /SL(\d+(?:[.,]\d+)?)/
+                        );
+
+
+                    if (match) {
+
+                        sickHours =
+                            Number(
+                                match[1].replace(
+                                    ",",
+                                    "."
+                                )
+                            );
+                    }
+                }
+
+
+                if (
+                    Number.isFinite(
+                        sickHours
+                    )
+                ) {
+
+                    hoursV +=
+                        sickHours;
+                }
+
+
+                return;
+            }
+
+
+            /* BĚŽNÁ SMĚNA */
+
+            if (!item.time) {
+
+                return;
+            }
+
+
+            const result =
+                calculateShiftForDate(
+                    item.time,
+                    date
+                );
+
+
+            workedHours +=
+                result.duration;
+
+
+            nightHours +=
+                result.night;
+
+
+            weekendHours +=
+                result.saturday +
+                result.sunday;
+
+
+            holidayHours +=
+                result.holiday;
+
+
+            if (
+                item.shift !== false
+            ) {
+
+                shiftCount += 1;
+            }
+
+        }
+    );
+
+
+    const overtimeHours =
+        calculateOvertime(
+            workerId,
+            dates
+        );
+
+
+    return {
+
+        workedHours:
+            roundHours(workedHours),
+
+        shiftCount,
+
+        weekendHours:
+            roundHours(weekendHours),
+
+        nightHours:
+            roundHours(nightHours),
+
+        holidayHours:
+            roundHours(holidayHours),
+
+        daysD,
+
+        hoursD:
+            roundHours(hoursD),
+
+        daysV,
+
+        hoursV:
+            roundHours(hoursV),
+
+        overtimeHours
+
+    };
+}
+
+
+/* =====================================================
+   RUČNÍ STATISTIKA
+===================================================== */
+
+function getManualStatistic(
+    month,
+    workerId
+) {
+
+    if (
+        !manualStatistics[month]
+    ) {
+
+        manualStatistics[month] = {};
+    }
+
+
+    if (
+        !manualStatistics[month][workerId]
+    ) {
+
+        manualStatistics[month][workerId] = {
+            vv: 0
+        };
+    }
+
+
+    return manualStatistics[
+        month
+    ][workerId];
+}
+
+
+/* =====================================================
+   VYKRESLENÍ MĚSÍCŮ
+===================================================== */
+
+function renderMonths() {
+    recalculateMonthPeriods();
+    const container=document.getElementById("months");
+    container.innerHTML="";
+
+    monthNames.forEach(function(name,index) {
+        const card=document.createElement("div");
+        card.className="month-card";
+
+        const title=document.createElement("div");
+        title.className="month-name";
+        title.textContent=name;
+
+        const settings=document.createElement("div");
+        settings.className="date-range period-settings";
+
+        if(index===0) {
+            const startLabel=document.createElement("label");
+            startLabel.textContent="První datum:";
+            const startInput=document.createElement("input");
+            startInput.type="date";
+            startInput.value=periodSetup.startDate;
+            startInput.addEventListener("change",function(){
+                if(!startInput.value) return;
+                periodSetup.startDate=startInput.value;
+                recalculateMonthPeriods();
+                renderMonths();
+            });
+            settings.appendChild(startLabel);
+            settings.appendChild(startInput);
+        }
+
+        const weeksLabel=document.createElement("label");
+        weeksLabel.textContent="Počet týdnů:";
+        const weeksInput=document.createElement("input");
+        weeksInput.type="number"; weeksInput.min="1"; weeksInput.max="8"; weeksInput.step="1";
+        weeksInput.value=periodSetup.weeks[index];
+        weeksInput.addEventListener("change",function(){
+            periodSetup.weeks[index]=Math.max(1,Math.min(8,Number(weeksInput.value)||4));
+            recalculateMonthPeriods();
+            renderMonths();
+        });
+        settings.appendChild(weeksLabel);
+        settings.appendChild(weeksInput);
+
+        const period=getPeriod(index);
+        const result=document.createElement("div");
+        result.className="period-result";
+        result.textContent=formatPeriodDate(period.from)+" – "+formatPeriodDate(period.to);
+
+        const button=document.createElement("button");
+        button.type="button"; button.className="open-month"; button.textContent="Otevřít "+name;
+        button.addEventListener("click",function(){showMonth(index);});
+
+        card.appendChild(title);
+        card.appendChild(settings);
+        card.appendChild(result);
+        card.appendChild(button);
+        container.appendChild(card);
+    });
+}
+
+
+/* =====================================================
+   DOMŮ
+===================================================== */
+
+function showHome() {
+
+    currentMonth = null;
+
+
+    document.getElementById("vacationPage").classList.add("hidden");
+    document.getElementById("legendPage").classList.add("hidden");
+
+    document
+        .getElementById("monthPage")
+        .classList.add("hidden");
+
+
+    document
+        .getElementById("workersPage")
+        .classList.add("hidden");
+
+
+    document
+        .getElementById("homePage")
+        .classList.remove("hidden");
+
+
+    renderMonths();
+}
+
+
+/* =====================================================
+   MĚSÍC
+===================================================== */
+
+function showMonth(month) {
+
+    currentMonth = month;
+
+
+    document.getElementById("vacationPage").classList.add("hidden");
+    document.getElementById("legendPage").classList.add("hidden");
+
+    document
+        .getElementById("homePage")
+        .classList.add("hidden");
+
+
+    document
+        .getElementById("workersPage")
+        .classList.add("hidden");
+
+
+    document
+        .getElementById("monthPage")
+        .classList.remove("hidden");
+
+
+    document
+        .getElementById("monthTitle")
+        .textContent =
+        monthNames[month] +
+        " " +
+        YEAR;
+
+
+    renderTable();
+}
+
+
+/* =====================================================
+   SPRÁVA PRACOVNÍKŮ
+===================================================== */
+
+function showWorkersPage() {
+
+    currentMonth = null;
+
+
+    document.getElementById("vacationPage").classList.add("hidden");
+    document.getElementById("legendPage").classList.add("hidden");
+
+    document
+        .getElementById("homePage")
+        .classList.add("hidden");
+
+
+    document
+        .getElementById("monthPage")
+        .classList.add("hidden");
+
+
+    document
+        .getElementById("workersPage")
+        .classList.remove("hidden");
+
+
+    renderWorkersManagement();
+}
+
+
+/* =====================================================
+   VYKRESLENÍ SPRÁVY PRACOVNÍKŮ
+===================================================== */
+
+function renderWorkersManagement() {
+
+    const container =
+        document.getElementById(
+            "workersList"
+        );
+
+
+    container.innerHTML = "";
+
+
+    workers.forEach(
+        function(worker, index) {
+
+            const row =
+                document.createElement(
+                    "tr"
+                );
+
+
+            /* ČÍSLO */
+
+            const numberCell =
+                document.createElement(
+                    "td"
+                );
+
+
+            numberCell.className =
+                "worker-number";
+
+
+            numberCell.textContent =
+                index + 1;
+
+
+            row.appendChild(
+                numberCell
+            );
+
+
+            /* JMÉNO */
+
+            const nameCell =
+                document.createElement(
+                    "td"
+                );
+
+
+            const nameInput =
+                document.createElement(
+                    "input"
+                );
+
+
+            nameInput.type =
+                "text";
+
+
+            nameInput.className =
+                "worker-name-input";
+
+
+            nameInput.value =
+                worker.name;
+
+            applyWorkerColors(nameInput, worker, index);
+
+
+            nameInput.addEventListener(
+                "change",
+                function() {
+
+                    const value =
+                        nameInput.value.trim();
+
+
+                    if (
+                        value === ""
+                    ) {
+
+                        nameInput.value =
+                            worker.name;
+
+                        return;
+                    }
+
+
+                    worker.name =
+                        value;
+
+
+                    saveData(
+                        "rozdelovnik_workers",
+                        workers
+                    );
+
+
+                    if (
+                        currentMonth !== null
+                    ) {
+
+                        renderTable();
+                    }
+
+                }
+            );
+
+
+            nameCell.appendChild(
+                nameInput
+            );
+
+
+            row.appendChild(
+                nameCell
+            );
+
+
+            /* D */
+
+            row.appendChild(
+                createWorkerDataCell(
+                    worker,
+                    "d"
+                )
+            );
+
+
+            /* RH */
+
+            row.appendChild(
+                createWorkerDataCell(
+                    worker,
+                    "rh"
+                )
+            );
+
+
+            /* ANG */
+
+            row.appendChild(
+                createWorkerDataCell(
+                    worker,
+                    "ang"
+                )
+            );
+
+
+            /* D SVÁTEK */
+
+            row.appendChild(
+                createWorkerDataCell(
+                    worker,
+                    "dHoliday"
+                )
+            );
+
+
+            /* FOND D/RH */
+
+            row.appendChild(
+                createWorkerDataCell(
+                    worker,
+                    "dRhFund"
+                )
+            );
+
+
+            /* BARVA PRACOVNÍKA */
+
+            const colorCell = document.createElement("td");
+            colorCell.style.textAlign = "center";
+
+            const colorInput = document.createElement("input");
+            colorInput.type = "color";
+            colorInput.className = "worker-color-input";
+            colorInput.value = getWorkerColor(worker, index);
+            colorInput.title = "Barva pracovníka";
+
+            colorInput.addEventListener("input", function() {
+                worker.color = colorInput.value;
+                saveData("rozdelovnik_workers", workers);
+                renderWorkersManagement();
+                if (currentMonth !== null) renderTable();
+            });
+
+            colorCell.appendChild(colorInput);
+            row.appendChild(colorCell);
+
+
+            /* TLAČÍTKA POŘADÍ */
+
+            const buttonsCell =
+                document.createElement(
+                    "td"
+                );
+
+
+            const buttons =
+                document.createElement(
+                    "div"
+                );
+
+
+            buttons.className =
+                "worker-management-buttons";
+
+
+            const up =
+                document.createElement(
+                    "button"
+                );
+
+
+            up.type =
+                "button";
+
+
+            up.className =
+                "move-button";
+
+
+            up.textContent =
+                "↑";
+
+
+            up.title =
+                "Posunout nahoru";
+
+
+            up.disabled =
+                index === 0;
+
+
+            up.addEventListener(
+                "click",
+                function() {
+
+                    moveWorker(
+                        index,
+                        index - 1
+                    );
+
+                }
+            );
+
+
+            const down =
+                document.createElement(
+                    "button"
+                );
+
+
+            down.type =
+                "button";
+
+
+            down.className =
+                "move-button";
+
+
+            down.textContent =
+                "↓";
+
+
+            down.title =
+                "Posunout dolů";
+
+
+            down.disabled =
+                index === workers.length - 1;
+
+
+            down.addEventListener(
+                "click",
+                function() {
+
+                    moveWorker(
+                        index,
+                        index + 1
+                    );
+
+                }
+            );
+
+
+            const remove =
+                document.createElement(
+                    "button"
+                );
+
+
+            remove.type =
+                "button";
+
+
+            remove.className =
+                "move-button";
+
+
+            remove.textContent =
+                "×";
+
+
+            remove.title =
+                "Odebrat pracovníka";
+
+
+            remove.style.color =
+                "#c62828";
+
+
+            remove.addEventListener(
+                "click",
+                function() {
+
+                    removeWorkerById(
+                        worker.id
+                    );
+
+                }
+            );
+
+
+            buttons.appendChild(up);
+            buttons.appendChild(down);
+            buttons.appendChild(remove);
+
+
+            buttonsCell.appendChild(
+                buttons
+            );
+
+
+            row.appendChild(
+                buttonsCell
+            );
+
+
+            container.appendChild(
+                row
+            );
+
+        }
+    );
+}
+
+
+/* =====================================================
+   ÚDAJ PRACOVNÍKA
+===================================================== */
+
+function createWorkerDataCell(
+    worker,
+    property
+) {
+
+    const cell =
+        document.createElement(
+            "td"
+        );
+
+
+    const input =
+        document.createElement(
+            "input"
+        );
+
+
+    input.type =
+        "text";
+
+
+    input.className =
+        "worker-data-input";
+
+
+    input.value =
+        worker[property] !== undefined
+            ? worker[property]
+            : "";
+
+
+    applyWorkerColors(input, worker);
+
+
+    const isDerivedCode =
+        property === "rh" ||
+        property === "ang" ||
+        property === "dHoliday";
+
+
+    if (isDerivedCode) {
+
+        input.readOnly = true;
+        input.title =
+            "Doplňuje se automaticky podle sloupce D";
+
+    } else {
+
+        input.addEventListener(
+            "change",
+            function() {
+
+                worker[property] =
+                    input.value.trim();
+
+
+                if (property === "d") {
+
+                    updateWorkerDerivedCodes(worker);
+
+                    renderWorkersManagement();
+                }
+
+
+                saveData(
+                    "rozdelovnik_workers",
+                    workers
+                );
+
+            }
+        );
+    }
+
+
+    cell.appendChild(
+        input
+    );
+
+
+    return cell;
+}
+
+
+/* =====================================================
+   PŘESUN PRACOVNÍKA
+===================================================== */
+
+/*
+   Při přesunu se NEMĚNÍ ID pracovníka.
+
+   Směny, přesčasy a statistiky jsou uložené
+   podle trvalého ID.
+
+   Proto se při změně pořadí automaticky
+   zobrazí směny u správného pracovníka.
+*/
+
+function moveWorker(
+    fromIndex,
+    toIndex
+) {
+
+    if (
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= workers.length ||
+        toIndex >= workers.length
+    ) {
+
+        return;
+    }
+
+
+    if (
+        fromIndex === toIndex
+    ) {
+
+        return;
+    }
+
+
+    const movedWorker =
+        workers.splice(
+            fromIndex,
+            1
+        )[0];
+
+
+    workers.splice(
+        toIndex,
+        0,
+        movedWorker
+    );
+
+
+    saveData(
+        "rozdelovnik_workers",
+        workers
+    );
+
+
+    renderWorkersManagement();
+
+
+    if (
+        currentMonth !== null
+    ) {
+
+        renderTable();
+    }
+}
+
+
+/* =====================================================
+   PŘIDÁNÍ PRACOVNÍKA
+===================================================== */
+
+function addWorkerFromManagement() {
+
+    const input =
+        document.getElementById(
+            "newWorkerName"
+        );
+
+
+    const name =
+        input.value.trim();
+
+
+    if (
+        name === ""
+    ) {
+
+        alert(
+            "Zadejte jméno pracovníka."
+        );
+
+
+        input.focus();
+
+        return;
+    }
+
+
+    workers.push({
+
+        id:
+            generateWorkerId(),
+
+        name:
+            name,
+
+        d: "",
+        rh: "",
+        ang: "",
+        dHoliday: "",
+        dRhFund: 6.8,
+        color: workerColorPalette[workers.length % workerColorPalette.length]
+
+    });
+
+
+    saveData(
+        "rozdelovnik_workers",
+        workers
+    );
+
+
+    input.value = "";
+
+
+    renderWorkersManagement();
+}
+
+
+/* =====================================================
+   ODEBRÁNÍ PRACOVNÍKA
+===================================================== */
+
+function removeWorkerById(
+    workerId
+) {
+
+    if (
+        workers.length <= 1
+    ) {
+
+        alert(
+            "Musí zůstat alespoň jeden pracovník."
+        );
+
+        return;
+    }
+
+
+    const index =
+        workers.findIndex(
+            function(worker) {
+
+                return worker.id === workerId;
+
+            }
+        );
+
+
+    if (
+        index === -1
+    ) {
+
+        return;
+    }
+
+
+    const worker =
+        workers[index];
+
+
+    if (
+        !confirm(
+            "Opravdu chcete odebrat " +
+            worker.name +
+            "?\n\n" +
+            "Jeho směny, přesčasy a statistické údaje " +
+            "zůstanou v uložených datech, ale pracovník " +
+            "už nebude v rozdělovníku zobrazen."
+        )
+    ) {
+
+        return;
+    }
+
+
+    workers.splice(
+        index,
+        1
+    );
+
+
+    saveData(
+        "rozdelovnik_workers",
+        workers
+    );
+
+
+    renderWorkersManagement();
+}
+
+
+/* =====================================================
+   TABULKA ROZDĚLOVNÍKU
+===================================================== */
+
+function renderTable() {
+
+    const table =
+        document.getElementById(
+            "scheduleTable"
+        );
+
+
+    table.innerHTML = "";
+
+
+    const dates =
+        getCurrentDates();
+
+
+    const info =
+        document.getElementById(
+            "periodInfo"
+        );
+
+
+    if (
+        dates.length === 0
+    ) {
+
+        info.textContent =
+            "Zkontrolujte datum od a do.";
+
+        return;
+    }
+
+
+    info.textContent =
+        "Období: " +
+        formatDate(dates[0]) +
+        " – " +
+        formatDate(
+            dates[dates.length - 1]
+        );
+
+
+    /* HLAVIČKA */
+
+    const header =
+        document.createElement(
+            "tr"
+        );
+
+
+    const workerHeader =
+        document.createElement(
+            "th"
+        );
+
+
+    workerHeader.className =
+        "worker-column";
+
+
+    workerHeader.textContent =
+        "Pracovník";
+
+
+    header.appendChild(
+        workerHeader
+    );
+
+
+    dates.forEach(
+        function(date) {
+
+            const th =
+                document.createElement(
+                    "th"
+                );
+
+
+            const day =
+                date.getDay();
+
+
+            th.innerHTML =
+                date.getDate() +
+                ".<br>" +
+                dayNames[day];
+
+
+            if (
+                day === 0 ||
+                day === 6
+            ) {
+
+                th.classList.add(
+                    "weekend"
+                );
+            }
+
+
+            if (
+                holidays.includes(
+                    dateToInput(date)
+                )
+            ) {
+
+                if (
+                    day === 0 ||
+                    day === 6
+                ) {
+
+                    th.classList.add(
+                        "holiday-weekend"
+                    );
+
+                } else {
+
+                    th.style.background =
+                        "#ffe3e3";
+                }
+
+                th.title =
+                    "Státní svátek";
+            }
+
+
+            header.appendChild(
+                th
+            );
+
+        }
+    );
+
+
+    table.appendChild(
+        header
+    );
+
+
+    /* PRACOVNÍCI */
+
+    workers.forEach(
+        function(worker) {
+
+            const row =
+                document.createElement(
+                    "tr"
+                );
+
+
+            const nameCell =
+                document.createElement(
+                    "td"
+                );
+
+
+            nameCell.className =
+                "worker";
+
+
+            nameCell.textContent =
+                worker.name;
+            applyWorkerColors(nameCell, worker);
+
+
+            row.appendChild(
+                nameCell
+            );
+
+
+            dates.forEach(
+                function(date) {
+
+                    const day =
+                        date.getDay();
+
+
+                    const cell =
+                        document.createElement(
+                            "td"
+                        );
+
+
+                    if (
+                        day === 0 ||
+                        day === 6
+                    ) {
+
+                        cell.classList.add(
+                            "weekend"
+                        );
+                    }
+
+
+                    if (
+                        holidays.includes(
+                            dateToInput(date)
+                        )
+                    ) {
+
+                        if (
+                            day === 0 ||
+                            day === 6
+                        ) {
+
+                            cell.classList.add(
+                                "holiday-weekend"
+                            );
+
+                        } else {
+
+                            cell.style.background =
+                                "#fff0f0";
+                        }
+                    }
+
+
+                    const select =
+                        document.createElement(
+                            "select"
+                        );
+
+
+                    select.className =
+                        "assignment";
+
+
+                    /* PRÁZDNÁ HODNOTA */
+
+                    const empty =
+                        document.createElement(
+                            "option"
+                        );
+
+
+                    empty.value = "";
+                    empty.textContent = "";
+
+
+                    select.appendChild(
+                        empty
+                    );
+
+
+                    /* LEGENDA */
+
+                    legend.forEach(
+                        function(item) {
+
+                            const option =
+                                document.createElement(
+                                    "option"
+                                );
+
+
+                            option.value =
+                                item.id;
+
+
+                            option.textContent =
+                                item.type;
+
+
+                            select.appendChild(
+                                option
+                            );
+
+                        }
+                    );
+
+
+                    const key =
+                        makeWorkerKey(
+                            date,
+                            worker.id
+                        );
+
+
+                    select.value =
+                        schedule[key] || "";
+
+
+                    select.addEventListener(
+                        "change",
+                        function() {
+
+                            if (
+                                select.value === ""
+                            ) {
+
+                                delete schedule[key];
+
+                            } else {
+
+                                schedule[key] =
+                                    select.value;
+                            }
+
+
+                            saveData(
+                                "rozdelovnik_schedule",
+                                schedule
+                            );
+
+                            /* Atomický cloudový zápis právě změněné směny. */
+                            saveScheduleCellToCloud(date, worker.id, select.value || null, "manual");
+
+                            updateTitle(select);
+
+
+                            renderStatistics(
+                                getCurrentDates()
+                            );
+
+                        }
+                    );
+
+
+                    updateTitle(select);
+
+
+                    cell.appendChild(
+                        select
+                    );
+
+
+                    row.appendChild(
+                        cell
+                    );
+
+                }
+            );
+
+
+            table.appendChild(
+                row
+            );
+
+
+            /* ŘÁDEK PŘESČAS */
+
+            const overtimeRow =
+                document.createElement(
+                    "tr"
+                );
+
+
+            overtimeRow.className =
+                "overtime-row";
+
+
+            const overtimeLabel =
+                document.createElement(
+                    "td"
+                );
+
+
+            overtimeLabel.className =
+                "worker overtime-label";
+
+
+            overtimeLabel.textContent =
+                "Přesčas";
+
+
+            overtimeRow.appendChild(
+                overtimeLabel
+            );
+
+
+            dates.forEach(
+                function(date) {
+
+                    const cell =
+                        document.createElement(
+                            "td"
+                        );
+
+
+                    const day =
+                        date.getDay();
+
+
+                    if (
+                        day === 0 ||
+                        day === 6
+                    ) {
+
+                        cell.classList.add(
+                            "weekend"
+                        );
+                    }
+
+
+                    const input =
+                        document.createElement(
+                            "input"
+                        );
+
+
+                    input.type =
+                        "number";
+
+
+                    input.min =
+                        "0";
+
+
+                    input.step =
+                        "0.1";
+
+
+                    input.className =
+                        "overtime-input";
+
+
+                    const currentValue =
+                        getOvertimeValue(
+                            date,
+                            worker.id
+                        );
+
+
+                    input.value =
+                        currentValue === 0
+                            ? ""
+                            : currentValue;
+
+
+                    input.title =
+                        "Počet hodin přesčasu";
+
+
+                    input.addEventListener(
+                        "input",
+                        function() {
+
+                            setOvertimeValue(
+                                date,
+                                worker.id,
+                                input.value
+                            );
+
+
+                            renderStatistics(
+                                getCurrentDates()
+                            );
+
+                        }
+                    );
+
+
+                    cell.appendChild(
+                        input
+                    );
+
+
+                    overtimeRow.appendChild(
+                        cell
+                    );
+
+                }
+            );
+
+
+            table.appendChild(
+                overtimeRow
+            );
+
+        }
+    );
+
+
+    renderStatistics(dates);
+}
+
+
+/* =====================================================
+   TITULEK BUŇKY
+===================================================== */
+
+function updateTitle(select) {
+
+    const item =
+        findLegendItem(
+            select.value
+        );
+
+
+    if (!item) {
+
+        select.title = "";
+
+        return;
+    }
+
+
+    if (
+        item.special === "D"
+    ) {
+
+        select.title =
+            "Dovolená – 6,8 hodiny";
+
+        return;
+    }
+
+
+    if (
+        item.special === "V"
+    ) {
+
+        select.title =
+            "Sick leave – " +
+            item.fixedHours +
+            " hodin";
+
+        return;
+    }
+
+
+    if (!item.time) {
+
+        select.title =
+            item.description || "";
+
+        return;
+    }
+
+
+    const parsed =
+        calculateShiftForDate(
+            item.time,
+            new Date(
+                YEAR,
+                0,
+                1
+            )
+        );
+
+
+    select.title =
+        "Typ: " +
+        item.type +
+        "\n" +
+        "Doba: " +
+        item.time +
+        "\n" +
+        "Noční: " +
+        formatHours(
+            parsed.night
+        ) +
+        " h";
+}
+
+
+/* =====================================================
+   STATISTIKA
+===================================================== */
+
+function renderStatistics(
+    dates
+) {
+
+    const container =
+        document.getElementById(
+            "statisticsContent"
+        );
+
+
+    if (!container) {
+        return;
+    }
+
+
+    container.innerHTML = "";
+
+
+    sortLegendAlphabetically();
+
+
+    const table =
+        document.createElement(
+            "table"
+        );
+
+
+    table.className =
+        "statistics-table";
+
+
+    const header =
+        document.createElement(
+            "tr"
+        );
+
+
+    const headers = [
+
+        "Pracovník",
+        "Odpracované<br>hodiny",
+        "Počet<br>směn",
+        "Hodin<br>víkendu",
+        "Hodin<br>noční",
+        "Hodin<br>svátek",
+        "Hodin<br>přesčas",
+        "Vybráno<br>dní D",
+        "Hodin D",
+        "Vybráno<br>dní V",
+        "Hodin V",
+        "Celkem<br>hodin",
+        "VV",
+        "Rozdíl"
+
+    ];
+
+
+    headers.forEach(
+        function(title) {
+
+            const th =
+                document.createElement(
+                    "th"
+                );
+
+
+            th.innerHTML =
+                title;
+
+
+            header.appendChild(
+                th
+            );
+
+        }
+    );
+
+
+    table.appendChild(
+        header
+    );
+
+
+    workers.forEach(
+        function(worker) {
+
+            const stats =
+                calculateStatistics(
+                    worker.id,
+                    dates
+                );
+
+
+            const manual =
+                getManualStatistic(
+                    currentMonth,
+                    worker.id
+                );
+
+
+            const vv =
+                Number(manual.vv) || 0;
+
+
+            const total =
+                roundHours(
+                    stats.workedHours +
+                    stats.hoursD +
+                    stats.hoursV +
+                    stats.overtimeHours
+                );
+
+
+            const difference =
+                roundHours(
+                    vv - total
+                );
+
+
+            const row =
+                document.createElement(
+                    "tr"
+                );
+
+
+            addStatText(
+                row,
+                worker.name
+            );
+
+
+            addStatText(
+                row,
+                formatHours(
+                    stats.workedHours
+                )
+            );
+
+
+            addStatText(
+                row,
+                stats.shiftCount
+            );
+
+
+            addStatText(
+                row,
+                formatHours(
+                    stats.weekendHours
+                )
+            );
+
+
+            addStatText(
+                row,
+                formatHours(
+                    stats.nightHours
+                )
+            );
+
+
+            addStatText(
+                row,
+                formatHours(
+                    stats.holidayHours
+                )
+            );
+
+
+            addStatText(
+                row,
+                formatHours(
+                    stats.overtimeHours
+                )
+            );
+
+
+            addStatText(
+                row,
+                stats.daysD
+            );
+
+
+            addStatText(
+                row,
+                formatHours(
+                    stats.hoursD
+                )
+            );
+
+
+            addStatText(
+                row,
+                stats.daysV
+            );
+
+
+            addStatText(
+                row,
+                formatHours(
+                    stats.hoursV
+                )
+            );
+
+
+            addStatText(
+                row,
+                formatHours(
+                    total
+                )
+            );
+
+
+            addManualVVInput(
+                row,
+                manual
+            );
+
+
+            const differenceCell =
+                document.createElement(
+                    "td"
+                );
+
+
+            differenceCell.className =
+                "stat-auto";
+
+
+            differenceCell.textContent =
+                formatHours(
+                    difference
+                );
+
+
+            if (
+                difference > 0
+            ) {
+
+                differenceCell.classList.add(
+                    "stat-difference-positive"
+                );
+
+            } else if (
+                difference < 0
+            ) {
+
+                differenceCell.classList.add(
+                    "stat-difference-negative"
+                );
+            }
+
+
+            row.appendChild(
+                differenceCell
+            );
+
+
+            table.appendChild(
+                row
+            );
+
+        }
+    );
+
+
+    container.appendChild(
+        table
+    );
+
+
+    const note =
+        document.createElement(
+            "div"
+        );
+
+
+    note.className =
+        "statistics-note";
+
+
+    note.textContent =
+        "Přesčas se zadává po jednotlivých dnech v řádku Přesčas. D = počet hodin podle fondu D/RH pracovníka. SLxx = počet hodin uvedený v názvu. VV se zadává ručně. Rozdíl = VV − Celkem hodin.";
+
+
+    container.appendChild(
+        note
+    );
+}
+
+
+/* =====================================================
+   STATISTIKA – BUŇKA
+===================================================== */
+
+function addStatText(
+    row,
+    value
+) {
+
+    const cell =
+        document.createElement(
+            "td"
+        );
+
+
+    cell.className =
+        "stat-auto";
+
+
+    cell.textContent =
+        value;
+
+
+    row.appendChild(
+        cell
+    );
+}
+
+
+/* =====================================================
+   VV
+===================================================== */
+
+function addManualVVInput(
+    row,
+    manual
+) {
+
+    const cell =
+        document.createElement(
+            "td"
+        );
+
+
+    const input =
+        document.createElement(
+            "input"
+        );
+
+
+    input.type =
+        "number";
+
+
+    input.min =
+        "0";
+
+
+    input.step =
+        "0.1";
+
+
+    input.className =
+        "stat-manual";
+
+
+    input.value =
+        manual.vv || "";
+
+
+    input.addEventListener(
+        "input",
+        function() {
+
+            const value =
+                Number(
+                    input.value
+                ) || 0;
+
+
+            manual.vv =
+                value;
+
+
+            saveData(
+                "rozdelovnik_manual_statistics",
+                manualStatistics
+            );
+
+
+            renderStatistics(
+                getCurrentDates()
+            );
+
+        }
+    );
+
+
+    cell.appendChild(
+        input
+    );
+
+
+    row.appendChild(
+        cell
+    );
+}
+
+
+/* =====================================================
+   LEGENDA – SAMOSTATNÁ STRÁNKA
+===================================================== */
+
+let legendReturnMonth = null;
+
+function showLegendPage() {
+    legendReturnMonth = currentMonth;
+    document.getElementById("homePage").classList.add("hidden");
+    document.getElementById("workersPage").classList.add("hidden");
+    document.getElementById("vacationPage").classList.add("hidden");
+    document.getElementById("monthPage").classList.add("hidden");
+    document.getElementById("legendPage").classList.remove("hidden");
+    renderLegend("legendPageContent");
+    window.scrollTo(0, 0);
+}
+
+function closeLegendPage() {
+    document.getElementById("legendPage").classList.add("hidden");
+    if (legendReturnMonth !== null) {
+        showMonth(legendReturnMonth);
+    } else {
+        showHome();
+    }
+}
+
+/* Původní funkce je ponechána kvůli kompatibilitě uložené stránky,
+   ale tlačítka nyní otevírají samostatnou stránku legendy. */
+function toggleLegend() {
+
+    const homeLegend =
+        document.getElementById(
+            "homeLegend"
+        );
+
+
+    const monthLegend =
+        document.getElementById(
+            "monthLegend"
+        );
+
+
+    if (
+        currentMonth === null
+    ) {
+
+        homeLegend.classList.toggle(
+            "visible"
+        );
+
+
+        renderLegend(
+            "homeLegendContent"
+        );
+
+    } else {
+
+        monthLegend.classList.toggle(
+            "visible"
+        );
+
+
+        renderLegend(
+            "monthLegendContent"
+        );
+    }
+}
+
+
+/* =====================================================
+   ŘAZENÍ LEGENDY
+===================================================== */
+
+function sortLegendAlphabetically() {
+
+    legend.sort(
+        function(a, b) {
+
+            return String(a.type || "").localeCompare(
+                String(b.type || ""),
+                "cs",
+                {
+                    numeric: true,
+                    sensitivity: "base"
+                }
+            );
+        }
+    );
+}
+
+
+/* =====================================================
+   EXPORT LEGENDY
+===================================================== */
+
+async function exportLegend() {
+    try {
+        /* Pokud jsme online, vezmeme před exportem aktuální data přímo ze Supabase. */
+        if (cloudSession) {
+            const r = await cloudFetch("shift_legend?select=*&order=sort_order.asc,id.asc", {method:"GET"});
+            if (!r.ok) {
+                throw new Error("Načtení legendy ze Supabase: " + await r.text());
+            }
+            const rows = await r.json();
+            if (Array.isArray(rows)) {
+                legend = cloudRowsToLegend(rows);
+                localStorage.setItem("rozdelovnik_legend", JSON.stringify(legend));
+            }
+        }
+
+        const exported = legend.map(function(item, index) {
+            const friday = item.special ? {night:0, saturday:0, sunday:0} : calculateShiftForDate(item.time, new Date(YEAR,0,2));
+            const saturday = item.special ? {night:0, saturday:0, sunday:0} : calculateShiftForDate(item.time, new Date(YEAR,0,3));
+            const sunday = item.special ? {night:0, saturday:0, sunday:0} : calculateShiftForDate(item.time, new Date(YEAR,0,4));
+
+            return {
+                poradi: index + 1,
+                typ: item.type || "",
+                doba: item.time || "",
+                fpd: item.fpd ?? "",
+                popis: item.description || "",
+                hodin_nocni: Number(friday.night || 0),
+                patek: Number((friday.saturday || 0) + (friday.sunday || 0)),
+                sobota: Number((saturday.saturday || 0) + (saturday.sunday || 0)),
+                nedele: Number((sunday.saturday || 0) + (sunday.sunday || 0)),
+                smena: item.shift === false ? "NE" : "ANO",
+                special: !!item.special
+            };
+        });
+
+        const payload = {
+            aplikace: "RozdelovnikLKMT",
+            rok: YEAR,
+            export: "Legenda směn",
+            vytvoreno: new Date().toISOString(),
+            polozky: exported
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json;charset=utf-8"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "RozdelovnikLKMT_legenda_" + YEAR + ".json";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+        if (typeof setCloudStatus === "function") setCloudStatus("Online • legenda exportována");
+    } catch (err) {
+        console.error(err);
+        if (typeof setCloudStatus === "function") setCloudStatus("Chyba exportu legendy", true);
+        alert("Export legendy se nepodařil: " + (err && err.message ? err.message : err));
+    }
+}
+
+/* =====================================================
+   VYKRESLENÍ LEGENDY
+===================================================== */
+
+function renderLegend(
+    containerId
+) {
+
+    const container =
+        document.getElementById(
+            containerId
+        );
+
+
+    if (!container) {
+        return;
+    }
+
+
+    container.innerHTML = "";
+
+
+    const table =
+        document.createElement(
+            "table"
+        );
+
+
+    table.className =
+        "legend-table";
+
+
+    const header =
+        document.createElement(
+            "tr"
+        );
+
+
+    const headers = [
+
+        "Typ",
+        "Doba",
+        "FPD",
+        "Popis",
+        "Hodin noční",
+        "Pátek",
+        "Sobota",
+        "Neděle",
+        "Směna",
+        ""
+
+    ];
+
+
+    headers.forEach(
+        function(title) {
+
+            const th =
+                document.createElement(
+                    "th"
+                );
+
+
+            th.textContent =
+                title;
+
+
+            header.appendChild(
+                th
+            );
+
+        }
+    );
+
+
+    table.appendChild(
+        header
+    );
+
+
+    legend.forEach(
+        function(item, index) {
+
+            const row =
+                document.createElement(
+                    "tr"
+                );
+
+
+            createInputCell(
+                row,
+                item,
+                "type",
+                containerId
+            );
+
+
+            createInputCell(
+                row,
+                item,
+                "time",
+                containerId
+            );
+
+
+            createInputCell(
+                row,
+                item,
+                "fpd",
+                containerId
+            );
+
+
+            createInputCell(
+                row,
+                item,
+                "description",
+                containerId
+            );
+
+
+            let statsFriday;
+            let statsSaturday;
+            let statsSunday;
+
+
+            if (
+                item.special
+            ) {
+
+                statsFriday = {
+                    night: 0,
+                    friday: 0,
+                    saturday: 0,
+                    sunday: 0
+                };
+
+                statsSaturday = {
+                    night: 0,
+                    friday: 0,
+                    saturday: 0,
+                    sunday: 0
+                };
+
+                statsSunday = {
+                    night: 0,
+                    friday: 0,
+                    saturday: 0,
+                    sunday: 0
+                };
+
+            } else {
+
+                /*
+                   Legenda musí počítat každý den samostatně.
+                   Použijeme konkrétní pátek, sobotu a neděli roku 2026,
+                   aby sloupce Pátek / Sobota / Neděle odpovídaly dni začátku směny.
+                */
+
+                statsFriday =
+                    calculateShiftForDate(
+                        item.time,
+                        new Date(
+                            YEAR,
+                            0,
+                            2
+                        )
+                    );
+
+                statsSaturday =
+                    calculateShiftForDate(
+                        item.time,
+                        new Date(
+                            YEAR,
+                            0,
+                            3
+                        )
+                    );
+
+                statsSunday =
+                    calculateShiftForDate(
+                        item.time,
+                        new Date(
+                            YEAR,
+                            0,
+                            4
+                        )
+                    );
+            }
+
+
+            createCalculatedCell(
+                row,
+                statsFriday.night
+            );
+
+
+            /*
+               Pátek / Sobota / Neděle = počet víkendových hodin
+               směny, která ZAČÍNÁ v daný den.
+
+               Příklad 19:30-07:30:
+               pátek  -> 7,5 h v sobotu
+               sobota -> 4,5 h v sobotu + 7,5 h v neděli = 12 h
+               neděle -> 4,5 h v neděli
+            */
+
+            createCalculatedCell(
+                row,
+                statsFriday.saturday + statsFriday.sunday
+            );
+
+
+            createCalculatedCell(
+                row,
+                statsSaturday.saturday + statsSaturday.sunday
+            );
+
+
+            createCalculatedCell(
+                row,
+                statsSunday.saturday + statsSunday.sunday
+            );
+
+
+            /* SMĚNA */
+
+            const shiftCell =
+                document.createElement(
+                    "td"
+                );
+
+
+            const shiftSelect =
+                document.createElement(
+                    "select"
+                );
+
+
+            shiftSelect.className =
+                "legend-input";
+
+
+            const yes =
+                document.createElement(
+                    "option"
+                );
+
+
+            yes.value = "true";
+            yes.textContent = "ANO";
+
+
+            const no =
+                document.createElement(
+                    "option"
+                );
+
+
+            no.value = "false";
+            no.textContent = "NE";
+
+
+            shiftSelect.appendChild(yes);
+            shiftSelect.appendChild(no);
+
+
+            shiftSelect.value =
+                item.shift === false
+                    ? "false"
+                    : "true";
+
+
+            shiftSelect.addEventListener(
+                "change",
+                function() {
+
+                    item.shift =
+                        shiftSelect.value ===
+                        "true";
+
+
+                    saveData(
+                        "rozdelovnik_legend",
+                        legend
+                    );
+
+
+                    if (
+                        currentMonth !== null
+                    ) {
+
+                        renderStatistics(
+                            getCurrentDates()
+                        );
+                    }
+
+                }
+            );
+
+
+            shiftCell.appendChild(
+                shiftSelect
+            );
+
+
+            row.appendChild(
+                shiftCell
+            );
+
+
+            /* SMAZÁNÍ */
+
+            const deleteCell =
+                document.createElement(
+                    "td"
+                );
+
+
+            const deleteButton =
+                document.createElement(
+                    "button"
+                );
+
+
+            deleteButton.type =
+                "button";
+
+
+            deleteButton.className =
+                "button button-red";
+
+
+            deleteButton.textContent =
+                "Smazat";
+
+
+            deleteButton.addEventListener(
+                "click",
+                function() {
+
+                    legend.splice(
+                        index,
+                        1
+                    );
+
+
+                    saveData(
+                        "rozdelovnik_legend",
+                        legend
+                    );
+
+
+                    renderLegend(
+                        containerId
+                    );
+
+
+                    if (
+                        currentMonth !== null
+                    ) {
+
+                        renderTable();
+                    }
+
+                }
+            );
+
+
+            deleteCell.appendChild(
+                deleteButton
+            );
+
+
+            row.appendChild(
+                deleteCell
+            );
+
+
+            table.appendChild(
+                row
+            );
+
+        }
+    );
+
+
+    /* NOVÝ ŘÁDEK PRO PŘIDÁNÍ POLOŽKY */
+
+    const addRow = document.createElement("tr");
+    addRow.className = "legend-add-row";
+
+    function addTextInput(placeholder) {
+        const cell = document.createElement("td");
+        const input = document.createElement("input");
+        input.type = "text";
+        input.className = "legend-input";
+        input.placeholder = placeholder;
+        cell.appendChild(input);
+        addRow.appendChild(cell);
+        return input;
+    }
+
+    const newType = addTextInput("Typ");
+    const newTime = addTextInput("např. 14:00-24:00");
+    const newFpd = addTextInput("FPD");
+    const newDescription = addTextInput("Popis");
+
+    ["—", "—", "—", "—"].forEach(function(value) {
+        const cell = document.createElement("td");
+        cell.className = "calculated";
+        cell.textContent = value;
+        addRow.appendChild(cell);
+    });
+
+    const newShiftCell = document.createElement("td");
+    const newShift = document.createElement("select");
+    newShift.className = "legend-input";
+    newShift.innerHTML = '<option value="true">ANO</option><option value="false">NE</option>';
+    newShiftCell.appendChild(newShift);
+    addRow.appendChild(newShiftCell);
+
+    const addCell = document.createElement("td");
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.className = "button button-green";
+    addButton.textContent = "Přidat";
+
+    addButton.addEventListener("click", function() {
+        const type = newType.value.trim();
+        const time = newTime.value.trim();
+        const fpd = newFpd.value.trim();
+        const description = newDescription.value.trim();
+
+        if (!type) {
+            alert("Vyplň typ směny.");
+            newType.focus();
+            return;
+        }
+
+        if (legend.some(function(item) {
+            return String(item.type).trim().toLocaleLowerCase("cs") === type.toLocaleLowerCase("cs");
+        })) {
+            alert("Typ směny už v legendě existuje.");
+            newType.focus();
+            return;
+        }
+
+        if (time && !parseTimeRange(time)) {
+            alert("Doba směny musí být ve formátu HH:MM-HH:MM, např. 14:00-24:00.");
+            newTime.focus();
+            return;
+        }
+
+        legend.push({
+            id: "new_" + Date.now(),
+            type: type,
+            time: time,
+            fpd: fpd,
+            description: description,
+            shift: newShift.value === "true"
+        });
+
+        sortLegendAlphabetically();
+        saveData("rozdelovnik_legend", legend);
+        renderLegend(containerId);
+
+        if (currentMonth !== null) {
+            renderTable();
+        }
+    });
+
+    addCell.appendChild(addButton);
+    addRow.appendChild(addCell);
+    table.appendChild(addRow);
+
+    container.appendChild(
+        table
+    );
+
+
+    const note =
+        document.createElement(
+            "div"
+        );
+
+
+    note.className =
+        "legend-note";
+
+
+    note.textContent =
+        "D = dovolená podle fondu D/RH pracovníka. SLxx = nemoc, kde číslo udává počet hodin. Hodiny noční a víkend se u běžných směn počítají automaticky podle času směny.";
+
+
+    container.appendChild(
+        note
+    );
+
+}
+
+
+/* =====================================================
+   INPUT LEGENDY
+===================================================== */
+
+function createInputCell(
+    row,
+    item,
+    property,
+    containerId
+) {
+
+    const cell =
+        document.createElement(
+            "td"
+        );
+
+
+    const input =
+        document.createElement(
+            "input"
+        );
+
+
+    input.className =
+        "legend-input";
+
+
+    input.value =
+        item[property] || "";
+
+
+    input.addEventListener(
+        "change",
+        function() {
+
+            item[property] =
+                input.value.trim();
+
+
+            /* Automatické rozpoznání SL8,
+               SL10, SL12 atd. */
+
+            if (
+                property === "type"
+            ) {
+
+                const type =
+                    input.value.trim();
+
+
+                const match =
+                    type.match(
+                        /^SL(\d+(?:[.,]\d+)?)$/i
+                    );
+
+
+                if (match) {
+
+                    item.special =
+                        "V";
+
+
+                    item.fixedHours =
+                        Number(
+                            match[1].replace(
+                                ",",
+                                "."
+                            )
+                        );
+
+                } else if (
+                    type.toUpperCase() === "D"
+                ) {
+
+                    item.special =
+                        "D";
+
+
+                    item.fixedHours =
+                        6.8;
+
+
+                    item.shift =
+                        false;
+
+                } else {
+
+                    delete item.special;
+                    delete item.fixedHours;
+                }
+
+            }
+
+
+            if (property === "type") {
+                sortLegendAlphabetically();
+            }
+
+
+            saveData(
+                "rozdelovnik_legend",
+                legend
+            );
+
+
+            renderLegend(
+                containerId
+            );
+
+
+            if (
+                currentMonth !== null
+            ) {
+
+                renderTable();
+            }
+
+        }
+    );
+
+
+    cell.appendChild(
+        input
+    );
+
+
+    row.appendChild(
+        cell
+    );
+}
+
+
+/* =====================================================
+   VÝPOČETNÍ BUŇKA LEGENDY
+===================================================== */
+
+function createCalculatedCell(
+    row,
+    value
+) {
+
+    const cell =
+        document.createElement(
+            "td"
+        );
+
+
+    cell.className =
+        "calculated";
+
+
+    cell.textContent =
+        formatHours(value);
+
+
+    row.appendChild(
+        cell
+    );
+}
+
+
+/* =====================================================
+   PŘIDÁNÍ POLOŽKY DO LEGENDY
+===================================================== */
+
+function addLegendItem(
+    containerId
+) {
+
+    const newId =
+        "new_" +
+        Date.now();
+
+
+    legend.push({
+
+        id:
+            newId,
+
+        type:
+            "NOV",
+
+        time:
+            "08:00-16:00",
+
+        fpd:
+            "",
+
+        description:
+            "Nová směna",
+
+        shift:
+            true
+
+    });
+
+
+    sortLegendAlphabetically();
+
+
+    saveData(
+        "rozdelovnik_legend",
+        legend
+    );
+
+
+    renderLegend(
+        containerId
+    );
+
+
+    if (
+        currentMonth !== null
+    ) {
+
+        renderTable();
+    }
+}
+
+
+/* =====================================================
+   PLÁNOVÁNÍ DOVOLENÝCH
+===================================================== */
+let vacationPlan = loadData("rozdelovnik_vacation_plan", {});
+let vacationVV = loadData("rozdelovnik_vacation_vv", {});
+let vacationKoef = loadData("rozdelovnik_vacation_koef", {});
+const VACATION_ROWS = 6;
+
+function getVacationCodeEntries() {
+    const entries = [];
+    workers.forEach(function(worker) {
+        [[worker.d,"D"],[worker.rh,"RH"],[worker.ang,"Ang"],[worker.dHoliday,"DSv"]].forEach(function(pair) {
+            const code = String(pair[0] || "").trim();
+            if (code) entries.push({code:code, worker:worker, assignmentType:pair[1]});
+        });
+    });
+    return entries;
+}
+
+function findLegendIdByType(type) {
+    const item = legend.find(function(x) { return String(x.type).trim().toLocaleLowerCase("cs") === String(type).toLocaleLowerCase("cs"); });
+    return item ? item.id : null;
+}
+
+function ensurePlanningLegendTypes() {
+    [{type:"RH",description:"Rehabilitace"},{type:"Ang",description:"Angličtina"},{type:"DSv",description:"Dovolená – svátek"}].forEach(function(def) {
+        if (!findLegendIdByType(def.type)) {
+            legend.push({id:"auto_"+def.type, type:def.type, time:"", fpd:"", description:def.description, shift:false});
+        }
+    });
+    sortLegendAlphabetically();
+    saveData("rozdelovnik_legend", legend);
+}
+
+function vacationCellKey(month, row, date) { return month + "_" + row + "_" + makeDateKey(date); }
+function vacationWeekKey(month, weekIndex) { return month + "_" + weekIndex; }
+
+function getMonthWeeks(month) {
+    /* Plán dovolených používá stejné období jako daný měsíc na hlavní stránce. */
+    const period = getPeriod(month);
+    const dates = getDates(period.from, period.to);
+    const weeks=[]; let current=[];
+    dates.forEach(function(date) {
+        if (current.length && date.getDay()===1) { weeks.push(current); current=[]; }
+        current.push(date);
+    });
+    if (current.length) weeks.push(current);
+    return weeks;
+}
+
+function syncVacationCell(month,row,date,newCode) {
+    const key=vacationCellKey(month,row,date);
+    const oldCode=vacationPlan[key] || "";
+    const entries=getVacationCodeEntries();
+    const oldEntry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===oldCode.toLocaleLowerCase("cs");});
+    const newEntry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===newCode.toLocaleLowerCase("cs");});
+    if (newCode && !newEntry) return {ok:false,message:"Tento kód není ve Správě pracovníků."};
+
+    /* Jeden pracovník může mít v jednom dni zadanou pouze jednu ze svých zkratek.
+       Ostatní pracovníci mohou tentýž den použít další aktivní řádky. */
+    if (newEntry) {
+        for (let otherRow=0; otherRow<VACATION_ROWS; otherRow++) {
+            if (otherRow===row) continue;
+            const otherCode=vacationPlan[vacationCellKey(month,otherRow,date)] || "";
+            const otherEntry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===otherCode.toLocaleLowerCase("cs");});
+            if (otherEntry && otherEntry.worker.id===newEntry.worker.id) {
+                return {ok:false,message:"Tento pracovník už má pro tento den zadanou zkratku v jiném řádku."};
+            }
+        }
+    }
+
+    if (oldEntry) {
+        const oldScheduleKey=makeWorkerKey(date,oldEntry.worker.id);
+        const oldLegendId=findLegendIdByType(oldEntry.assignmentType);
+        if (schedule[oldScheduleKey]===oldLegendId) delete schedule[oldScheduleKey];
+    }
+    if (newEntry) {
+        const scheduleKey=makeWorkerKey(date,newEntry.worker.id);
+        const legendId=findLegendIdByType(newEntry.assignmentType);
+        if (!legendId) return {ok:false,message:"V legendě chybí položka "+newEntry.assignmentType+"."};
+        schedule[scheduleKey]=legendId;
+        vacationPlan[key]=newEntry.code;
+    } else delete vacationPlan[key];
+
+    saveData("rozdelovnik_vacation_plan",vacationPlan);
+    saveData("rozdelovnik_schedule",schedule);
+    /* Stejnou změnu propíšeme atomicky i do cloudového měsíčního rozdělovníku. */
+    if (oldEntry && (!newEntry || oldEntry.worker.id !== newEntry.worker.id)) {
+        saveScheduleCellToCloud(date, oldEntry.worker.id, null, "vacation");
+    }
+    if (newEntry) {
+        saveScheduleCellToCloud(date, newEntry.worker.id, schedule[makeWorkerKey(date,newEntry.worker.id)] || null, "vacation");
+    }
+    /* Do cloudu ukládáme pouze právě změněnou buňku. */
+    saveVacationCellToCloud(date, row, newEntry || null);
+    return {ok:true};
+}
+
+function showVacationPage() {
+    currentMonth=null;
+    document.getElementById("legendPage").classList.add("hidden");
+    document.getElementById("homePage").classList.add("hidden");
+    document.getElementById("workersPage").classList.add("hidden");
+    document.getElementById("monthPage").classList.add("hidden");
+    document.getElementById("vacationPage").classList.remove("hidden");
+    ensurePlanningLegendTypes();
+    renderVacationPlanning();
+}
+
+/* Ve verzi 2a jsou všechny měsíce zobrazené pod sebou na jedné stránce.
+   Svislý posuvník používá přímo okno prohlížeče; široké měsíce mají vlastní
+   vodorovný posuvník, aby se zachovala čitelnost tabulky. */
+function formatPeriodDate(value) {
+    const parts=String(value || "").split("-");
+    if(parts.length!==3) return String(value || "");
+    return Number(parts[2])+"."+Number(parts[1])+"."+parts[0];
+}
+
+function renderVacationPlanning() {
+    const container=document.getElementById("vacationAllMonths");
+    if(!container) return;
+    container.innerHTML="";
+    for(let month=0;month<12;month++){
+        const section=document.createElement("section");
+        section.className="vacation-month-section";
+        section.id="vacationMonth_"+month;
+        const title=document.createElement("h3");
+        title.className="vacation-month-title";
+        const period=getPeriod(month);
+        title.textContent=monthNames[month]+"  ("+formatPeriodDate(period.from)+" – "+formatPeriodDate(period.to)+")";
+        section.appendChild(title);
+        const wrapper=document.createElement("div");
+        wrapper.className="vacation-table-wrapper";
+        const table=document.createElement("table");
+        table.className="vacation-table";
+        wrapper.appendChild(table);
+        section.appendChild(wrapper);
+        container.appendChild(section);
+        renderVacationMonth(month,table);
+    }
+}
+
+function renderVacationMonth(month, table) {
+    table.innerHTML="";
+    const entries=getVacationCodeEntries();
+    const weeks=getMonthWeeks(month);
+    const dates=[].concat.apply([],weeks);
+    const dateWeek={}; weeks.forEach(function(w,wi){w.forEach(function(d){dateWeek[makeDateKey(d)]=wi;});});
+
+    const vvRow=document.createElement("tr");
+    let th=document.createElement("th"); th.colSpan=2; th.textContent=""; vvRow.appendChild(th);
+    dates.forEach(function(date){
+        const cell=document.createElement("th");
+        const wi=dateWeek[makeDateKey(date)];
+        const week=weeks[wi];
+        const pos=week.findIndex(function(d){return makeDateKey(d)===makeDateKey(date);});
+        if (pos===0) cell.classList.add("vac-week-start");
+        if (pos===0) {
+            cell.textContent="VV";
+            cell.style.fontWeight="bold";
+        } else if (pos===1) {
+            const input=document.createElement("input");
+            input.type="number"; input.min=0; input.max=VACATION_ROWS; input.className="vacation-vv";
+            input.value=vacationVV[vacationWeekKey(month,wi)]===undefined ? 0 : vacationVV[vacationWeekKey(month,wi)];
+            input.addEventListener("change",function(){
+                vacationVV[vacationWeekKey(month,wi)]=Math.max(0,Math.min(VACATION_ROWS,Number(input.value)||0));
+                saveData("rozdelovnik_vacation_vv",vacationVV);
+                queueVacationWeekCloudSave();
+                renderVacationPlanning();
+                requestAnimationFrame(function(){document.getElementById("vacationMonth_"+month)?.scrollIntoView({block:"start"});});
+            });
+            cell.appendChild(input);
+        } else if (pos===2) {
+            cell.textContent="KOEF";
+            cell.style.fontWeight="bold";
+        } else if (pos===3) {
+            const input=document.createElement("input");
+            input.type="text";
+            input.className="vacation-vv";
+            input.value=vacationKoef[vacationWeekKey(month,wi)] || "";
+            input.setAttribute("aria-label","KOEF");
+            input.addEventListener("change",function(){
+                vacationKoef[vacationWeekKey(month,wi)]=input.value.trim();
+                saveData("rozdelovnik_vacation_koef",vacationKoef);
+                queueVacationWeekCloudSave();
+            });
+            cell.appendChild(input);
+        }
+        vvRow.appendChild(cell);
+    }); table.appendChild(vvRow);
+
+    const header=document.createElement("tr");
+    ["Zbývá D","MAX D"].forEach(function(t){const h=document.createElement("th");h.textContent=t;header.appendChild(h);});
+    dates.forEach(function(date){const h=document.createElement("th");const isWeekend=date.getDay()===0||date.getDay()===6;const isHoliday=holidays.includes(dateToInput(date));h.innerHTML=date.getDate()+".<br>"+dayNames[date.getDay()];if(isHoliday){h.classList.add(isWeekend?"vac-holiday-weekend":"vac-holiday");h.title="Státní svátek";}else if(isWeekend){h.classList.add("vac-weekend");}if(date.getDay()===1||date===dates[0])h.classList.add("vac-week-start");header.appendChild(h);});
+    table.appendChild(header);
+
+    for(let row=0;row<VACATION_ROWS;row++){
+        const tr=document.createElement("tr"); let maxD=0, used=0;
+        weeks.forEach(function(week,wi){const vv=Number(vacationVV[vacationWeekKey(month,wi)]||0);if(row<vv) maxD += week.filter(function(d){return d.getDay()>=1&&d.getDay()<=5;}).length;});
+        dates.forEach(function(date){const wi=dateWeek[makeDateKey(date)], vv=Number(vacationVV[vacationWeekKey(month,wi)]||0);if(row<vv&&date.getDay()>=1&&date.getDay()<=5&&vacationPlan[vacationCellKey(month,row,date)])used++;});
+        const remain=document.createElement("td");remain.className="vac-stat";remain.textContent=maxD-used;tr.appendChild(remain);
+        const max=document.createElement("td");max.className="vac-stat";max.textContent=maxD;tr.appendChild(max);
+        dates.forEach(function(date){
+            const wi=dateWeek[makeDateKey(date)], vv=Number(vacationVV[vacationWeekKey(month,wi)]||0); const weekday=date.getDay()>=1&&date.getDay()<=5; const active=weekday&&row<vv;
+            const td=document.createElement("td"); const isWeekend=date.getDay()===0||date.getDay()===6; const isHoliday=holidays.includes(dateToInput(date)); if(isHoliday){td.classList.add(isWeekend?"vac-holiday-weekend":"vac-holiday");td.title="Státní svátek";}else if(isWeekend){td.classList.add("vac-weekend");}else if(!active){td.classList.add("vac-inactive");}if(date.getDay()===1||date===dates[0])td.classList.add("vac-week-start");
+            if(active){
+                const input=document.createElement("select"); input.className="vacation-code"; const key=vacationCellKey(month,row,date);
+                const currentValue=vacationPlan[key]||"";
+                const usedWorkerIds=new Set();
+                for(let otherRow=0;otherRow<VACATION_ROWS;otherRow++){
+                    if(otherRow===row) continue;
+                    const otherCode=vacationPlan[vacationCellKey(month,otherRow,date)]||"";
+                    const otherEntry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===otherCode.toLocaleLowerCase("cs");});
+                    if(otherEntry) usedWorkerIds.add(otherEntry.worker.id);
+                }
+                const currentEntry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===currentValue.toLocaleLowerCase("cs");});
+                const emptyOption=document.createElement("option"); emptyOption.value=""; emptyOption.textContent="— prázdné / smazat —"; input.appendChild(emptyOption);
+                entries.forEach(function(e){
+                    if(!usedWorkerIds.has(e.worker.id) || (currentEntry && e.worker.id===currentEntry.worker.id)){
+                        const o=document.createElement("option");o.value=e.code;o.textContent=e.code;input.appendChild(o);
+                    }
+                });
+                input.value=currentValue;
+                const paint=function(){const e=getVacationCodeEntries().find(function(x){return x.code.toLocaleLowerCase("cs")===input.value.trim().toLocaleLowerCase("cs");});if(e){applyWorkerColors(input,e.worker);}else{input.style.background="transparent";input.style.color="#222";}};paint();
+                input.addEventListener("change",function(){
+                    const val=input.value.trim();const result=syncVacationCell(month,row,date,val);
+                    if(!result.ok){alert(result.message);input.value=vacationPlan[key]||"";}
+                    renderVacationPlanning();
+                    requestAnimationFrame(function(){document.getElementById("vacationMonth_"+month)?.scrollIntoView({block:"start"});});
+                });td.appendChild(input);
+            }
+            tr.appendChild(td);
+        }); table.appendChild(tr);
+    }
+}
+
+/* =====================================================
+   START APLIKACE
+===================================================== */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        renderMonths();
+
+    }
+);
+
+</script>
+
+</body>
+</html>
