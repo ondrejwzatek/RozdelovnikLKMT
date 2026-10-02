@@ -677,6 +677,8 @@ h1 {
 .vacation-code { width:100%; height:100%; border:0; text-align:center; font-weight:bold; background:transparent; padding:0 2px; }
 .vacation-code:focus { outline:2px solid #1769aa; outline-offset:-2px; }
 .vacation-vv { width:46px; padding:4px; text-align:center; border:1px solid #b8c0c8; border-radius:4px; }
+.vacation-week-note { width:calc(100% - 8px); box-sizing:border-box; padding:4px 6px; border:1px solid #b8c0c8; border-radius:4px; background:white; }
+.vacation-admin-override { box-shadow: inset 0 0 0 1px rgba(23,105,170,.18); }
 .vacation-code-list { min-width:130px; padding:7px; border:1px solid #c7ccd1; border-radius:5px; background:white; }
 .vacation-note { font-size:12px; color:#66717c; margin-top:10px; }
 
@@ -1026,6 +1028,11 @@ h1 {
 const SUPABASE_URL = "https://fuzdntjsidmankpflqjq.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_wMuEnP7BgLlMru9arfM4aA_TMVMPMHQ";
 const CLOUD_SESSION_KEY = "rozdelovnik_supabase_session";
+const ADMIN_EMAILS = ["ondrej.wzatek@seznam.cz"];
+function isVacationAdmin() {
+    const email = String(cloudSession && cloudSession.user && cloudSession.user.email || "").trim().toLowerCase();
+    return ADMIN_EMAILS.includes(email);
+}
 let cloudSession = null;
 let cloudLegendReady = false;
 let cloudLegendSaveTimer = null;
@@ -1375,13 +1382,16 @@ async function loadVacationWeekSettingsFromCloud() {
     if (rows.length) {
         vacationVV = {};
         vacationKoef = {};
+        vacationWeekNote = {};
         rows.forEach(function(row) {
             const key = vacationWeekKey(Number(row.month)-1, Number(row.week_index));
             vacationVV[key] = Math.max(0, Math.min(VACATION_ROWS, Number(row.vv)||0));
             vacationKoef[key] = row.koef == null ? "" : String(row.koef);
+            vacationWeekNote[key] = row.note == null ? "" : String(row.note);
         });
         saveData("rozdelovnik_vacation_vv", vacationVV);
         saveData("rozdelovnik_vacation_koef", vacationKoef);
+        saveData("rozdelovnik_vacation_week_note", vacationWeekNote);
     } else {
         await saveVacationWeekSettingsToCloudNow(true);
     }
@@ -1407,6 +1417,7 @@ async function saveVacationWeekSettingsToCloudNow(force) {
                     week_index: wi,
                     vv: Math.max(0, Math.min(VACATION_ROWS, Number(vacationVV[key])||0)),
                     koef: String(vacationKoef[key] || ""),
+                    note: String(vacationWeekNote[key] || ""),
                     updated_at: new Date().toISOString()
                 });
             }
@@ -5983,6 +5994,7 @@ function addLegendItem(
 let vacationPlan = loadData("rozdelovnik_vacation_plan", {});
 let vacationVV = loadData("rozdelovnik_vacation_vv", {});
 let vacationKoef = loadData("rozdelovnik_vacation_koef", {});
+let vacationWeekNote = loadData("rozdelovnik_vacation_week_note", {});
 const VACATION_ROWS = 6;
 
 function getVacationCodeEntries() {
@@ -6128,44 +6140,57 @@ function renderVacationMonth(month, table) {
 
     const vvRow=document.createElement("tr");
     let th=document.createElement("th"); th.colSpan=2; th.textContent=""; vvRow.appendChild(th);
-    dates.forEach(function(date){
-        const cell=document.createElement("th");
-        const wi=dateWeek[makeDateKey(date)];
-        const week=weeks[wi];
-        const pos=week.findIndex(function(d){return makeDateKey(d)===makeDateKey(date);});
-        if (pos===0) cell.classList.add("vac-week-start");
-        if (pos===0) {
-            cell.textContent="VV";
-            cell.style.fontWeight="bold";
-        } else if (pos===1) {
-            const input=document.createElement("input");
-            input.type="number"; input.min=0; input.max=VACATION_ROWS; input.className="vacation-vv";
-            input.value=vacationVV[vacationWeekKey(month,wi)]===undefined ? 0 : vacationVV[vacationWeekKey(month,wi)];
-            input.addEventListener("change",function(){
-                vacationVV[vacationWeekKey(month,wi)]=Math.max(0,Math.min(VACATION_ROWS,Number(input.value)||0));
-                saveData("rozdelovnik_vacation_vv",vacationVV);
-                queueVacationWeekCloudSave();
-                renderVacationPlanning();
-                requestAnimationFrame(function(){document.getElementById("vacationMonth_"+month)?.scrollIntoView({block:"start"});});
-            });
-            cell.appendChild(input);
-        } else if (pos===2) {
-            cell.textContent="KOEF";
-            cell.style.fontWeight="bold";
-        } else if (pos===3) {
-            const input=document.createElement("input");
-            input.type="text";
-            input.className="vacation-vv";
-            input.value=vacationKoef[vacationWeekKey(month,wi)] || "";
-            input.setAttribute("aria-label","KOEF");
-            input.addEventListener("change",function(){
-                vacationKoef[vacationWeekKey(month,wi)]=input.value.trim();
-                saveData("rozdelovnik_vacation_koef",vacationKoef);
-                queueVacationWeekCloudSave();
-            });
-            cell.appendChild(input);
+    weeks.forEach(function(week,wi){
+        for(let pos=0; pos<week.length; pos++){
+            if(pos>4) continue;
+            const cell=document.createElement("th");
+            if(pos===0) cell.classList.add("vac-week-start");
+            if(pos===0) {
+                cell.textContent="VV";
+                cell.style.fontWeight="bold";
+            } else if(pos===1) {
+                const input=document.createElement("input");
+                input.type="number"; input.min=0; input.max=VACATION_ROWS; input.className="vacation-vv";
+                input.value=vacationVV[vacationWeekKey(month,wi)]===undefined ? 0 : vacationVV[vacationWeekKey(month,wi)];
+                input.addEventListener("change",function(){
+                    vacationVV[vacationWeekKey(month,wi)]=Math.max(0,Math.min(VACATION_ROWS,Number(input.value)||0));
+                    saveData("rozdelovnik_vacation_vv",vacationVV);
+                    queueVacationWeekCloudSave();
+                    renderVacationPlanning();
+                    requestAnimationFrame(function(){document.getElementById("vacationMonth_"+month)?.scrollIntoView({block:"start"});});
+                });
+                cell.appendChild(input);
+            } else if(pos===2) {
+                cell.textContent="KOEF";
+                cell.style.fontWeight="bold";
+            } else if(pos===3) {
+                const input=document.createElement("input");
+                input.type="text";
+                input.className="vacation-vv";
+                input.value=vacationKoef[vacationWeekKey(month,wi)] || "";
+                input.setAttribute("aria-label","KOEF");
+                input.addEventListener("change",function(){
+                    vacationKoef[vacationWeekKey(month,wi)]=input.value.trim();
+                    saveData("rozdelovnik_vacation_koef",vacationKoef);
+                    queueVacationWeekCloudSave();
+                });
+                cell.appendChild(input);
+            } else if(pos===4) {
+                cell.colSpan=Math.max(1, week.length-4);
+                const input=document.createElement("input");
+                input.type="text";
+                input.className="vacation-week-note";
+                input.value=vacationWeekNote[vacationWeekKey(month,wi)] || "";
+                input.setAttribute("aria-label","Poznámka týdne");
+                input.addEventListener("change",function(){
+                    vacationWeekNote[vacationWeekKey(month,wi)]=input.value.trim();
+                    saveData("rozdelovnik_vacation_week_note",vacationWeekNote);
+                    queueVacationWeekCloudSave();
+                });
+                cell.appendChild(input);
+            }
+            vvRow.appendChild(cell);
         }
-        vvRow.appendChild(cell);
     }); table.appendChild(vvRow);
 
     const header=document.createElement("tr");
@@ -6180,9 +6205,9 @@ function renderVacationMonth(month, table) {
         const remain=document.createElement("td");remain.className="vac-stat";remain.textContent=maxD-used;tr.appendChild(remain);
         const max=document.createElement("td");max.className="vac-stat";max.textContent=maxD;tr.appendChild(max);
         dates.forEach(function(date){
-            const wi=dateWeek[makeDateKey(date)], vv=Number(vacationVV[vacationWeekKey(month,wi)]||0); const weekday=date.getDay()>=1&&date.getDay()<=5; const active=weekday&&row<vv;
-            const td=document.createElement("td"); const isWeekend=date.getDay()===0||date.getDay()===6; const isHoliday=holidays.includes(dateToInput(date)); if(isHoliday){td.classList.add(isWeekend?"vac-holiday-weekend":"vac-holiday");td.title="Státní svátek";}else if(isWeekend){td.classList.add("vac-weekend");}else if(!active){td.classList.add("vac-inactive");}if(date.getDay()===1||date===dates[0])td.classList.add("vac-week-start");
-            if(active){
+            const wi=dateWeek[makeDateKey(date)], vv=Number(vacationVV[vacationWeekKey(month,wi)]||0); const weekday=date.getDay()>=1&&date.getDay()<=5; const active=weekday&&row<vv; const adminOverride=weekday&&row>=vv&&isVacationAdmin(); const editable=active||adminOverride;
+            const td=document.createElement("td"); const isWeekend=date.getDay()===0||date.getDay()===6; const isHoliday=holidays.includes(dateToInput(date)); if(isHoliday){td.classList.add(isWeekend?"vac-holiday-weekend":"vac-holiday");td.title="Státní svátek";}else if(isWeekend){td.classList.add("vac-weekend");}else if(!active){td.classList.add("vac-inactive");} if(adminOverride) td.classList.add("vacation-admin-override");if(date.getDay()===1||date===dates[0])td.classList.add("vac-week-start");
+            if(editable){
                 const input=document.createElement("select"); input.className="vacation-code"; const key=vacationCellKey(month,row,date);
                 const currentValue=vacationPlan[key]||"";
                 const usedWorkerIds=new Set();
