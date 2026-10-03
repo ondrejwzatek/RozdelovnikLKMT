@@ -688,6 +688,20 @@ h1 {
 .vacation-admin-override { box-shadow: inset 0 0 0 1px rgba(23,105,170,.18); }
 .vacation-code-list { min-width:130px; padding:7px; border:1px solid #c7ccd1; border-radius:5px; background:white; }
 .vacation-note { font-size:12px; color:#66717c; margin-top:10px; }
+.vacation-planning-control { margin-bottom:18px; border:1px solid #cfd5db; border-radius:10px; background:#f8f9fa; padding:14px; }
+.vacation-planning-control h3 { margin:0 0 12px; font-size:17px; }
+.vpc-grid { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:10px; align-items:end; }
+.vpc-field label { display:block; font-size:11px; font-weight:bold; margin-bottom:4px; color:#4b5563; }
+.vpc-field input,.vpc-field select { width:100%; padding:7px; border:1px solid #b8c0c8; border-radius:5px; background:white; }
+.vpc-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.vpc-summary { margin-top:12px; font-size:12px; color:#4b5563; }
+.vpc-order-table { width:100%; border-collapse:collapse; margin-top:12px; background:white; }
+.vpc-order-table th,.vpc-order-table td { border:1px solid #d5d9de; padding:6px; text-align:center; font-size:12px; }
+.vpc-order-table th { background:#e8ebee; }
+.vpc-order-table td:nth-child(2) { text-align:left; font-weight:bold; }
+.vpc-order-table select { width:100%; padding:5px; }
+@media (max-width:900px){ .vpc-grid{grid-template-columns:repeat(2,minmax(140px,1fr));} }
+
 
 
 /* =====================================================
@@ -936,6 +950,7 @@ h1 {
         <button type="button" class="button" onclick="showHome()">← Zpět</button>
     </div>
     <div class="vacation-page">
+        <div id="vacationPlanningControl"></div>
         <div id="vacationAllMonths"></div>
         <div class="vacation-note">VV určuje počet aktivních řádků v daném týdnu. Dovolenou lze zapisovat pouze Po–Pá. Kódy D, RH, Ang a D svátek se automaticky propisují do měsíčního rozdělovníku.</div>
     </div>
@@ -1065,6 +1080,8 @@ let cloudScheduleReady = false;
 let cloudScheduleSaving = false;
 let cloudScheduleSavePending = false;
 let cloudScheduleSaveTimer = null;
+let cloudVacationControlReady = false;
+let cloudVacationControlSaveTimer = null;
 
 function cloudHeaders(extra) {
     const h = Object.assign({
@@ -1108,6 +1125,7 @@ async function manualCloudSave() {
         await saveVacationWeekSettingsToCloudNow(true);
         await saveVacationPlanToCloudNow(true);
         await saveScheduleToCloudNow(true);
+        await saveVacationControlToCloudNow(true);
         setCloudStatus("Online • uloženo", true);
     } catch (e) {
         console.error(e);
@@ -1450,6 +1468,38 @@ function queueVacationWeekCloudSave() {
 }
 
 
+
+async function loadVacationControlFromCloud() {
+    if (!cloudSession) return;
+    const r = await cloudFetch("app_settings?setting_key=eq.vacation_planning_control&select=setting_value", {method:"GET"});
+    if (!r.ok) throw new Error("Načtení řízení plánování: " + await r.text());
+    const rows = await r.json();
+    if (rows.length && rows[0].setting_value) {
+        vacationControl = normalizeVacationControl(rows[0].setting_value);
+        saveData("rozdelovnik_vacation_control", vacationControl);
+    }
+    cloudVacationControlReady = true;
+    if (document.getElementById("vacationPage") && !document.getElementById("vacationPage").classList.contains("hidden")) renderVacationPlanningControl();
+}
+
+async function saveVacationControlToCloudNow(force) {
+    if (!cloudSession) return;
+    if (!force && !cloudVacationControlReady) return;
+    const r = await cloudFetch("app_settings?on_conflict=setting_key", {
+        method:"POST",
+        headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+        body:JSON.stringify({setting_key:"vacation_planning_control",setting_value:vacationControl,updated_at:new Date().toISOString()})
+    });
+    if (!r.ok) throw new Error("Uložení řízení plánování: " + await r.text());
+}
+
+function queueVacationControlCloudSave() {
+    saveData("rozdelovnik_vacation_control", vacationControl);
+    if (!cloudVacationControlReady || !cloudSession) return;
+    clearTimeout(cloudVacationControlSaveTimer);
+    cloudVacationControlSaveTimer=setTimeout(function(){ saveVacationControlToCloudNow(false).catch(console.error); },250);
+}
+
 function findVacationMonthForDate(date) {
     const key = makeDateKey(date);
     for (let month=0; month<12; month++) {
@@ -1748,7 +1798,7 @@ async function initCloud() {
     try { cloudSession = JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY) || "null"); } catch(e) { cloudSession = null; }
     if (cloudSession && cloudSession.refresh_token && await cloudRefreshSession()) {
         overlay.classList.add("hidden"); status.classList.remove("hidden");
-        try { await loadLegendFromCloud(); await loadWorkersFromCloud(); await loadPeriodsFromCloud(); await loadVacationWeekSettingsFromCloud(); await loadVacationPlanFromCloud(); await loadScheduleFromCloud(); } catch(e) { console.error(e); setCloudStatus("Chyba připojení"); }
+        try { await loadLegendFromCloud(); await loadWorkersFromCloud(); await loadPeriodsFromCloud(); await loadVacationWeekSettingsFromCloud(); await loadVacationPlanFromCloud(); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); } catch(e) { console.error(e); setCloudStatus("Chyba připojení"); }
     }
 }
 
@@ -1765,13 +1815,14 @@ document.addEventListener("DOMContentLoaded", function() {
             await loadVacationWeekSettingsFromCloud();
             await loadVacationPlanFromCloud();
             await loadScheduleFromCloud();
+            await loadVacationControlFromCloud();
         } catch(e) { error.textContent = e.message; }
     });
     document.getElementById("cloudPassword").addEventListener("keydown", function(e) { if (e.key === "Enter") document.getElementById("cloudLoginBtn").click(); });
     const manualSaveBtn = document.getElementById("cloudManualSaveBtn");
     if (manualSaveBtn) manualSaveBtn.addEventListener("click", manualCloudSave);
     document.getElementById("cloudLogoutBtn").addEventListener("click", function() {
-        cloudSession = null; cloudLegendReady = false; cloudWorkersReady = false; cloudPeriodsReady = false; cloudVacationWeekReady = false; cloudVacationPlanReady = false; cloudScheduleReady = false; localStorage.removeItem(CLOUD_SESSION_KEY); location.reload();
+        cloudSession = null; cloudLegendReady = false; cloudWorkersReady = false; cloudPeriodsReady = false; cloudVacationWeekReady = false; cloudVacationPlanReady = false; cloudScheduleReady = false; cloudVacationControlReady = false; localStorage.removeItem(CLOUD_SESSION_KEY); location.reload();
     });
     initCloud();
 });
@@ -6004,6 +6055,83 @@ let vacationKoef = loadData("rozdelovnik_vacation_koef", {});
 let vacationWeekNote = loadData("rozdelovnik_vacation_week_note", {});
 const VACATION_ROWS = 6;
 
+function defaultVacationControl() {
+    return { planningYear:YEAR+1, cutoffDate:"", round1Start:"", currentRound:0, round1Order:[] };
+}
+function normalizeVacationControl(value) {
+    const v=Object.assign(defaultVacationControl(), value||{});
+    v.planningYear=Number(v.planningYear)||YEAR+1;
+    v.currentRound=Math.max(0,Math.min(4,Number(v.currentRound)||0));
+    v.round1Order=Array.isArray(v.round1Order)?v.round1Order.map(String):[];
+    return v;
+}
+let vacationControl = normalizeVacationControl(loadData("rozdelovnik_vacation_control", defaultVacationControl()));
+
+function ensureRound1Order() {
+    const activeIds=workers.map(function(w){return String(w.id);});
+    const kept=(vacationControl.round1Order||[]).filter(function(id){return activeIds.includes(String(id));});
+    activeIds.forEach(function(id){if(!kept.includes(id)) kept.push(id);});
+    vacationControl.round1Order=kept;
+}
+function addCalendarDays(dateKey, days) {
+    const d=parseDateKey(dateKey); if(!d) return "";
+    d.setDate(d.getDate()+days); return makeDateKey(d);
+}
+function formatShortDateKey(key) {
+    const d=parseDateKey(key); return d ? d.getDate()+"."+(d.getMonth()+1)+"."+d.getFullYear() : "—";
+}
+function renderVacationPlanningControl() {
+    const root=document.getElementById("vacationPlanningControl"); if(!root) return;
+    ensureRound1Order();
+    const admin=isVacationAdmin();
+    root.innerHTML="";
+    const box=document.createElement("div"); box.className="vacation-planning-control";
+    const h=document.createElement("h3"); h.textContent="Řízení plánování dovolených"; box.appendChild(h);
+    const grid=document.createElement("div"); grid.className="vpc-grid";
+    function field(label,type,value,onchange,opts){
+        const wrap=document.createElement("div"); wrap.className="vpc-field";
+        const l=document.createElement("label"); l.textContent=label; wrap.appendChild(l);
+        const el=document.createElement(type==="select"?"select":"input");
+        if(type!=="select") el.type=type;
+        if(opts) opts.forEach(function(o){const op=document.createElement("option");op.value=o.value;op.textContent=o.text;el.appendChild(op);});
+        el.value=value==null?"":value; el.disabled=!admin; el.addEventListener("change",function(){onchange(el.value);queueVacationControlCloudSave();renderVacationPlanningControl();});
+        wrap.appendChild(el);grid.appendChild(wrap);
+    }
+    field("Plánovací rok","number",vacationControl.planningYear,function(v){vacationControl.planningYear=Number(v)||YEAR+1;});
+    field("Uzávěrka věžáků","date",vacationControl.cutoffDate,function(v){vacationControl.cutoffDate=v;});
+    field("Začátek 1. kola","date",vacationControl.round1Start,function(v){vacationControl.round1Start=v;});
+    field("Aktuální kolo","select",String(vacationControl.currentRound),function(v){vacationControl.currentRound=Number(v);},[
+        {value:"0",text:"0. kolo – požadavky"},{value:"1",text:"1. kolo – RH"},{value:"2",text:"2. kolo – D"},{value:"3",text:"3. kolo – D"},{value:"4",text:"4. kolo – free for all"}
+    ]);
+    box.appendChild(grid);
+    const summary=document.createElement("div"); summary.className="vpc-summary";
+    const n=workers.length; const pause=vacationControl.round1Start?addCalendarDays(vacationControl.round1Start,n):"";
+    summary.textContent="1. kolo: "+n+" plánovacích dní + 1 den pauza"+(pause?" • pauza po 1. kole: "+formatShortDateKey(pause):"")+". Pořadí 1. kola je pevné a věžáky z 0. kola ho nemění.";
+    box.appendChild(summary);
+    const table=document.createElement("table"); table.className="vpc-order-table";
+    table.innerHTML="<thead><tr><th>Pořadí</th><th>Pracovník</th><th>Plánovací den 1. kola</th></tr></thead>";
+    const tb=document.createElement("tbody");
+    vacationControl.round1Order.forEach(function(workerId,index){
+        const tr=document.createElement("tr");
+        const pos=document.createElement("td");pos.textContent=index+1;tr.appendChild(pos);
+        const name=document.createElement("td");
+        if(admin){
+            const sel=document.createElement("select");
+            workers.forEach(function(w){const op=document.createElement("option");op.value=String(w.id);op.textContent=w.name;sel.appendChild(op);});
+            sel.value=workerId; sel.addEventListener("change",function(){
+                const newId=sel.value, oldIndex=vacationControl.round1Order.indexOf(newId);
+                if(oldIndex>=0){vacationControl.round1Order[oldIndex]=workerId;}
+                vacationControl.round1Order[index]=newId; queueVacationControlCloudSave(); renderVacationPlanningControl();
+            }); name.appendChild(sel);
+        } else { const w=workers.find(function(x){return String(x.id)===workerId;}); name.textContent=w?w.name:"—"; }
+        tr.appendChild(name);
+        const day=document.createElement("td");day.textContent=vacationControl.round1Start?formatShortDateKey(addCalendarDays(vacationControl.round1Start,index)):"—";tr.appendChild(day);
+        tb.appendChild(tr);
+    }); table.appendChild(tb); box.appendChild(table);
+    root.appendChild(box);
+}
+
+
 function getVacationCodeEntries() {
     const entries = [];
     workers.forEach(function(worker) {
@@ -6115,6 +6243,7 @@ function formatPeriodDate(value) {
 }
 
 function renderVacationPlanning() {
+    renderVacationPlanningControl();
     const container=document.getElementById("vacationAllMonths");
     if(!container) return;
     container.innerHTML="";
