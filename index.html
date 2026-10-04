@@ -664,6 +664,8 @@ h1 {
 .vacation-table-wrapper { overflow-x:auto; margin-bottom:26px; }
 .vacation-month-section { margin-bottom:34px; }
 .vacation-month-title { margin:0 0 10px; padding:9px 12px; background:#eef1f4; border:1px solid #d5d9de; border-radius:7px; font-size:18px; position:sticky; top:0; z-index:3; }
+.vacation-month-link { border:0; background:transparent; padding:0; margin:0; font:inherit; font-weight:700; color:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+.vacation-month-link:hover { color:#1f5f99; }
 .vacation-table { width:100%; border-collapse:collapse; min-width:1200px; table-layout:fixed; }
 .vacation-table th,.vacation-table td { border:1px solid #cfd5db; text-align:center; height:34px; padding:0; font-size:11px; }
 .vacation-table th { background:#e8ebee; }
@@ -927,6 +929,16 @@ h1 {
 /* v30 – ruční změny v plánování dovolených */
 .vacation-manual-save:not(:disabled){background:#2e7d32 !important;color:#fff !important;border-color:#256b29 !important;}
 .vacation-manual-discard:not(:disabled){background:#c62828 !important;color:#fff !important;border-color:#a91f1f !important;}
+
+/* v34 – uzávěrky kol a snapshot priority */
+.vpc-round-head-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.vpc-close-round-btn{font-size:9px;font-weight:700;padding:3px 6px;border:1px solid #8aa3b8;border-radius:4px;background:#fff;cursor:pointer;white-space:nowrap}
+.vpc-close-round-btn:hover{background:#eef6fa}
+.vpc-round-status-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 9px;border:1px solid rgba(0,0,0,.18)}
+.vpc-round-status-dot.is-active{background:#35a853}
+.vpc-round-status-dot.is-inactive{background:#d94b4b}
+.vpc-round-head > span:first-child{min-width:0;line-height:1.15}
+.vpc-round-head-actions{flex-wrap:nowrap!important;align-self:flex-start}
 </style>
 </head>
 
@@ -1118,7 +1130,7 @@ h1 {
     <div class="vacation-page">
         <div id="vacationPlanningControl"></div>
         <div id="vacationAllMonths"></div>
-        <div class="vacation-note">VV určuje počet aktivních řádků v daném týdnu. Dovolenou lze zapisovat pouze Po–Pá. Kódy D, RH, Ang a D svátek se automaticky propisují do měsíčního rozdělovníku.</div>
+        <div class="vacation-note">VV určuje počet aktivních řádků v daném týdnu. Dovolenou lze zapisovat pouze Po–Pá. Kódy D, RH, Ang a D svátek se po uložení propisují do měsíčního rozdělovníku.</div>
     </div>
 </div>
 
@@ -3353,6 +3365,7 @@ function calculateStatistics(
     let hoursD = 0;
 
     let daysRH = 0;
+    let hoursRH = 0;
     let daysV = 0;
     let hoursV = 0;
 
@@ -3423,6 +3436,19 @@ function calculateStatistics(
 
             if (itemType === "RH") {
                 daysRH += 1;
+
+                const worker = workers.find(
+                    function(currentWorker) {
+                        return currentWorker.id === workerId;
+                    }
+                );
+
+                const dRhFund =
+                    worker && Number.isFinite(Number(worker.dRhFund))
+                        ? Number(worker.dRhFund)
+                        : 6.8;
+
+                hoursRH += dRhFund;
                 return;
             }
 
@@ -3502,8 +3528,10 @@ function calculateStatistics(
                 );
 
 
-            workedHours +=
-                result.duration;
+            const fpdHours = Number(String(item.fpd ?? "").replace(",", "."));
+            workedHours += Number.isFinite(fpdHours) && String(item.fpd ?? "").trim() !== ""
+                ? fpdHours
+                : roundHours(Number(result.duration) || 0);
 
 
             nightHours +=
@@ -3560,6 +3588,9 @@ function calculateStatistics(
 
         daysRH,
 
+        hoursRH:
+            roundHours(hoursRH),
+
         daysV,
 
         hoursV:
@@ -3614,7 +3645,7 @@ function syncYearStartControls(){
     if(d && periodSetup) d.value=periodSetup.startDate || (YEAR+"-01-01");
     const t=document.getElementById("homeMainTitle"); if(t) t.textContent="Rozdělovník "+YEAR;
     const login=document.querySelector("#cloudLoginOverlay h2"); if(login) login.textContent="Rozdělovník "+YEAR;
-    document.title="Rozdělovník "+YEAR+" – layout v28";
+    document.title="Rozdělovník "+YEAR+" – layout v41";
 }
 function applyYearAndStartDate(){
     const y=document.getElementById("appYearDraft"), d=document.getElementById("appStartDateDraft");
@@ -5109,15 +5140,16 @@ function renderStatistics(
     const headers = [
 
         "Pracovník",
-        "Odpracované<br>hodiny",
+        "Odpracováno<br>hodin",
         "Počet<br>směn",
-        "Hodin<br>víkendu",
-        "Hodin<br>noční",
-        "Hodin<br>svátek",
-        "Hodin<br>přesčas",
+        "Přesčas",
+        "Víkend",
+        "Svátek",
+        "Noční",
         "Vybráno<br>dní D",
         "Hodin D",
         "Vybráno<br>dní RH",
+        "Hodin RH",
         "Vybráno<br>dní V",
         "Celkem<br>hodin",
         "VV",
@@ -5173,11 +5205,17 @@ function renderStatistics(
                 Number(manual.vv) || 0;
 
 
-            const total =
+            const workedIncludingSick =
                 roundHours(
                     stats.workedHours +
+                    stats.hoursV
+                );
+
+            const total =
+                roundHours(
+                    workedIncludingSick +
                     stats.hoursD +
-                    stats.hoursV +
+                    stats.hoursRH +
                     stats.overtimeHours
                 );
 
@@ -5203,7 +5241,7 @@ function renderStatistics(
             addStatText(
                 row,
                 formatHours(
-                    stats.workedHours
+                    workedIncludingSick
                 )
             );
 
@@ -5213,37 +5251,10 @@ function renderStatistics(
                 stats.shiftCount
             );
 
-
-            addStatText(
-                row,
-                formatHours(
-                    stats.weekendHours
-                )
-            );
-
-
-            addStatText(
-                row,
-                formatHours(
-                    stats.nightHours
-                )
-            );
-
-
-            addStatText(
-                row,
-                formatHours(
-                    stats.holidayHours
-                )
-            );
-
-
-            addStatText(
-                row,
-                formatHours(
-                    stats.overtimeHours
-                )
-            );
+            addStatText(row, formatHours(stats.overtimeHours));
+            addStatText(row, formatHours(stats.weekendHours));
+            addStatText(row, formatHours(stats.holidayHours));
+            addStatText(row, formatHours(stats.nightHours));
 
 
             addStatText(
@@ -5263,6 +5274,14 @@ function renderStatistics(
             addStatText(
                 row,
                 stats.daysRH
+            );
+
+
+            addStatText(
+                row,
+                formatHours(
+                    stats.hoursRH
+                )
             );
 
 
@@ -5349,7 +5368,7 @@ function renderStatistics(
 
 
     note.textContent =
-        "Přesčas se zadává po jednotlivých dnech v řádku Přesčas. D = počet hodin podle fondu D/RH pracovníka ze Správy pracovníků. DSv nečerpá den D ani hodiny D. RH se počítá do Vybráno dní RH. Libovolný sick leave se počítá do Vybráno dní V. VV se zadává ručně. Rozdíl = VV − Celkem hodin.";
+        "Přesčas se zadává po jednotlivých dnech v řádku Přesčas. D a RH = počet hodin podle fondu D/RH pracovníka ze Správy pracovníků. DSv nečerpá den D ani hodiny D. RH se počítá do Vybráno dní RH a Hodin RH. Libovolný sick leave se počítá do Vybráno dní V. VV se zadává ručně. Rozdíl = VV − Celkem hodin.";
 
 
     container.appendChild(
@@ -5630,498 +5649,70 @@ async function exportLegend() {
 function renderLegend(
     containerId
 ) {
-
-    const container =
-        document.getElementById(
-            containerId
-        );
-
-
-    if (!container) {
-        return;
-    }
-
-
+    const container = document.getElementById(containerId);
+    if (!container) return;
     container.innerHTML = "";
 
-
-    const table =
-        document.createElement(
-            "table"
-        );
-
-
-    table.className =
-        "legend-table";
-
-
-    const header =
-        document.createElement(
-            "tr"
-        );
-
-
-    const headers = [
-
-        "Typ",
-        "Doba",
-        "FPD",
-        "Popis",
-        "Hodin noční",
-        "Pátek",
-        "Sobota",
-        "Neděle",
-        "Směna",
-        ""
-
-    ];
-
-
-    headers.forEach(
-        function(title) {
-
-            const th =
-                document.createElement(
-                    "th"
-                );
-
-
-            th.textContent =
-                title;
-
-
-            header.appendChild(
-                th
-            );
-
-        }
-    );
-
-
-    table.appendChild(
-        header
-    );
-
-
-    legend.forEach(
-        function(item, index) {
-
-            const row =
-                document.createElement(
-                    "tr"
-                );
-
-
-            createInputCell(
-                row,
-                item,
-                "type",
-                containerId
-            );
-
-
-            createInputCell(
-                row,
-                item,
-                "time",
-                containerId
-            );
-
-
-            createInputCell(
-                row,
-                item,
-                "fpd",
-                containerId
-            );
-
-
-            createInputCell(
-                row,
-                item,
-                "description",
-                containerId
-            );
-
-
-            let statsFriday;
-            let statsSaturday;
-            let statsSunday;
-
-
-            if (
-                item.special
-            ) {
-
-                statsFriday = {
-                    night: 0,
-                    friday: 0,
-                    saturday: 0,
-                    sunday: 0
-                };
-
-                statsSaturday = {
-                    night: 0,
-                    friday: 0,
-                    saturday: 0,
-                    sunday: 0
-                };
-
-                statsSunday = {
-                    night: 0,
-                    friday: 0,
-                    saturday: 0,
-                    sunday: 0
-                };
-
-            } else {
-
-                /*
-                   Legenda musí počítat každý den samostatně.
-                   Použijeme konkrétní pátek, sobotu a neděli roku 2026,
-                   aby sloupce Pátek / Sobota / Neděle odpovídaly dni začátku směny.
-                */
-
-                statsFriday =
-                    calculateShiftForDate(
-                        item.time,
-                        new Date(
-                            YEAR,
-                            0,
-                            2
-                        )
-                    );
-
-                statsSaturday =
-                    calculateShiftForDate(
-                        item.time,
-                        new Date(
-                            YEAR,
-                            0,
-                            3
-                        )
-                    );
-
-                statsSunday =
-                    calculateShiftForDate(
-                        item.time,
-                        new Date(
-                            YEAR,
-                            0,
-                            4
-                        )
-                    );
-            }
-
-
-            createCalculatedCell(
-                row,
-                statsFriday.night
-            );
-
-
-            /*
-               Pátek / Sobota / Neděle = počet víkendových hodin
-               směny, která ZAČÍNÁ v daný den.
-
-               Příklad 19:30-07:30:
-               pátek  -> 7,5 h v sobotu
-               sobota -> 4,5 h v sobotu + 7,5 h v neděli = 12 h
-               neděle -> 4,5 h v neděli
-            */
-
-            createCalculatedCell(
-                row,
-                statsFriday.saturday + statsFriday.sunday
-            );
-
-
-            createCalculatedCell(
-                row,
-                statsSaturday.saturday + statsSaturday.sunday
-            );
-
-
-            createCalculatedCell(
-                row,
-                statsSunday.saturday + statsSunday.sunday
-            );
-
-
-            /* SMĚNA */
-
-            const shiftCell =
-                document.createElement(
-                    "td"
-                );
-
-
-            const shiftSelect =
-                document.createElement(
-                    "select"
-                );
-
-
-            shiftSelect.className =
-                "legend-input";
-
-
-            const yes =
-                document.createElement(
-                    "option"
-                );
-
-
-            yes.value = "true";
-            yes.textContent = "ANO";
-
-
-            const no =
-                document.createElement(
-                    "option"
-                );
-
-
-            no.value = "false";
-            no.textContent = "NE";
-
-
-            shiftSelect.appendChild(yes);
-            shiftSelect.appendChild(no);
-
-
-            shiftSelect.value =
-                item.shift === false
-                    ? "false"
-                    : "true";
-
-
-            shiftSelect.addEventListener(
-                "change",
-                function() {
-
-                    item.shift =
-                        shiftSelect.value ===
-                        "true";
-
-
-                    saveData(
-                        "rozdelovnik_legend",
-                        legend
-                    );
-
-
-                    if (
-                        currentMonth !== null
-                    ) {
-
-                        renderStatistics(
-                            getCurrentDates()
-                        );
-                    }
-
-                }
-            );
-
-
-            shiftCell.appendChild(
-                shiftSelect
-            );
-
-
-            row.appendChild(
-                shiftCell
-            );
-
-
-            /* SMAZÁNÍ */
-
-            const deleteCell =
-                document.createElement(
-                    "td"
-                );
-
-
-            const deleteButton =
-                document.createElement(
-                    "button"
-                );
-
-
-            deleteButton.type =
-                "button";
-
-
-            deleteButton.className =
-                "button button-red";
-
-
-            deleteButton.textContent =
-                "Smazat";
-
-
-            deleteButton.addEventListener(
-                "click",
-                function() {
-
-                    legend.splice(
-                        index,
-                        1
-                    );
-
-
-                    saveData(
-                        "rozdelovnik_legend",
-                        legend
-                    );
-
-
-                    renderLegend(
-                        containerId
-                    );
-
-
-                    if (
-                        currentMonth !== null
-                    ) {
-
-                        renderTable();
-                    }
-
-                }
-            );
-
-
-            deleteCell.appendChild(
-                deleteButton
-            );
-
-
-            row.appendChild(
-                deleteCell
-            );
-
-
-            table.appendChild(
-                row
-            );
-
-        }
-    );
-
-
-    /* NOVÝ ŘÁDEK PRO PŘIDÁNÍ POLOŽKY */
-
-    const addRow = document.createElement("tr");
-    addRow.className = "legend-add-row";
-
-    function addTextInput(placeholder) {
-        const cell = document.createElement("td");
-        const input = document.createElement("input");
-        input.type = "text";
-        input.className = "legend-input";
-        input.placeholder = placeholder;
-        cell.appendChild(input);
-        addRow.appendChild(cell);
-        return input;
-    }
-
-    const newType = addTextInput("Typ");
-    const newTime = addTextInput("např. 14:00-24:00");
-    const newFpd = addTextInput("FPD");
-    const newDescription = addTextInput("Popis");
-
-    ["—", "—", "—", "—"].forEach(function(value) {
-        const cell = document.createElement("td");
-        cell.className = "calculated";
-        cell.textContent = value;
-        addRow.appendChild(cell);
+    const table = document.createElement("table");
+    table.className = "legend-table";
+    const header = document.createElement("tr");
+    ["", "Typ", "Doba", "FPD", "Popis", "Hodin noční", "Směna"].forEach(function(title){
+        const th = document.createElement("th"); th.textContent = title; header.appendChild(th);
     });
+    table.appendChild(header);
 
-    const newShiftCell = document.createElement("td");
-    const newShift = document.createElement("select");
-    newShift.className = "legend-input";
-    newShift.innerHTML = '<option value="true">ANO</option><option value="false">NE</option>';
-    newShiftCell.appendChild(newShift);
-    addRow.appendChild(newShiftCell);
-
-    const addCell = document.createElement("td");
-    const addButton = document.createElement("button");
-    addButton.type = "button";
-    addButton.className = "button button-green";
-    addButton.textContent = "Přidat";
-
-    addButton.addEventListener("click", function() {
-        const type = newType.value.trim();
-        const time = newTime.value.trim();
-        const fpd = newFpd.value.trim();
-        const description = newDescription.value.trim();
-
-        if (!type) {
-            alert("Vyplň typ směny.");
-            newType.focus();
-            return;
-        }
-
-        if (legend.some(function(item) {
-            return String(item.type).trim().toLocaleLowerCase("cs") === type.toLocaleLowerCase("cs");
-        })) {
-            alert("Typ směny už v legendě existuje.");
-            newType.focus();
-            return;
-        }
-
-        if (time && !parseTimeRange(time)) {
-            alert("Doba směny musí být ve formátu HH:MM-HH:MM, např. 14:00-24:00.");
-            newTime.focus();
-            return;
-        }
-
-        legend.push({
-            id: "new_" + Date.now(),
-            type: type,
-            time: time,
-            fpd: fpd,
-            description: description,
-            shift: newShift.value === "true"
+    legend.forEach(function(item, index){
+        const row = document.createElement("tr");
+        const deleteCell = document.createElement("td");
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button"; deleteButton.className = "button button-red"; deleteButton.textContent = "Smazat";
+        deleteButton.addEventListener("click", function(){
+            legend.splice(index,1); saveData("rozdelovnik_legend",legend); renderLegend(containerId);
+            if (currentMonth !== null) renderTable();
         });
+        deleteCell.appendChild(deleteButton); row.appendChild(deleteCell);
 
-        sortLegendAlphabetically();
-        saveData("rozdelovnik_legend", legend);
-        renderLegend(containerId);
+        createInputCell(row,item,"type",containerId);
+        createInputCell(row,item,"time",containerId);
+        createInputCell(row,item,"fpd",containerId);
+        createInputCell(row,item,"description",containerId);
 
-        if (currentMonth !== null) {
-            renderTable();
-        }
+        let night=0;
+        if(!item.special && item.time){ night=calculateShiftForDate(item.time,new Date(YEAR,0,2)).night; }
+        createCalculatedCell(row,night);
+
+        const shiftCell=document.createElement("td");
+        const shiftSelect=document.createElement("select"); shiftSelect.className="legend-input";
+        shiftSelect.innerHTML='<option value="true">ANO</option><option value="false">NE</option>';
+        shiftSelect.value=item.shift===false?"false":"true";
+        shiftSelect.addEventListener("change",function(){ item.shift=shiftSelect.value==="true"; saveData("rozdelovnik_legend",legend); if(currentMonth!==null) renderStatistics(getCurrentDates()); });
+        shiftCell.appendChild(shiftSelect); row.appendChild(shiftCell); table.appendChild(row);
     });
 
-    addCell.appendChild(addButton);
-    addRow.appendChild(addCell);
-    table.appendChild(addRow);
+    const addRow=document.createElement("tr"); addRow.className="legend-add-row";
+    const addCell=document.createElement("td");
+    const addButton=document.createElement("button"); addButton.type="button"; addButton.className="button button-green"; addButton.textContent="Přidat";
+    addCell.appendChild(addButton); addRow.appendChild(addCell);
+    function addTextInput(placeholder){ const cell=document.createElement("td"); const input=document.createElement("input"); input.type="text"; input.className="legend-input"; input.placeholder=placeholder; cell.appendChild(input); addRow.appendChild(cell); return input; }
+    const newType=addTextInput("Typ");
+    const newTime=addTextInput("např. 14:00-24:00");
+    const newFpd=addTextInput("FPD");
+    const newDescription=addTextInput("Popis");
+    const nightCell=document.createElement("td"); nightCell.className="calculated"; nightCell.textContent="—"; addRow.appendChild(nightCell);
+    const newShiftCell=document.createElement("td"); const newShift=document.createElement("select"); newShift.className="legend-input"; newShift.innerHTML='<option value="true">ANO</option><option value="false">NE</option>'; newShiftCell.appendChild(newShift); addRow.appendChild(newShiftCell);
+    addButton.addEventListener("click",function(){
+        const type=newType.value.trim(), time=newTime.value.trim(), fpd=newFpd.value.trim(), description=newDescription.value.trim();
+        if(!type){ alert("Vyplň typ směny."); newType.focus(); return; }
+        if(legend.some(function(item){ return String(item.type).trim().toLocaleLowerCase("cs")===type.toLocaleLowerCase("cs"); })){ alert("Typ směny už v legendě existuje."); newType.focus(); return; }
+        if(time && !parseTimeRange(time)){ alert("Doba směny musí být ve formátu HH:MM-HH:MM, např. 14:00-24:00."); newTime.focus(); return; }
+        legend.push({id:"new_"+Date.now(),type:type,time:time,fpd:fpd,description:description,shift:newShift.value==="true"});
+        sortLegendAlphabetically(); saveData("rozdelovnik_legend",legend); renderLegend(containerId); if(currentMonth!==null) renderTable();
+    });
+    table.appendChild(addRow); container.appendChild(table);
 
-    container.appendChild(
-        table
-    );
-
-
-    const note =
-        document.createElement(
-            "div"
-        );
-
-
-    note.className =
-        "legend-note";
-
-
-    note.textContent =
-        "D = dovolená podle fondu D/RH pracovníka. SLxx = nemoc, kde číslo udává počet hodin. Hodiny noční a víkend se u běžných směn počítají automaticky podle času směny.";
-
-
-    container.appendChild(
-        note
-    );
-
+    const note=document.createElement("div"); note.className="legend-note";
+    note.textContent="FPD je ručně nastavený počet započítaných hodin směny. Hodiny noční se u běžných směn počítají automaticky podle času směny. Víkend a svátek se ve statistikách počítají podle konkrétního data směny.";
+    container.appendChild(note);
 }
 
 
@@ -6355,13 +5946,16 @@ let vacationWeekNote = loadData("rozdelovnik_vacation_week_note", {});
 const VACATION_ROWS = 6;
 
 function defaultVacationControl() {
-    return { planningYear:YEAR+1, cutoffDate:"", round1Start:"", currentRound:0, round1Order:[] };
+    return { planningYear:YEAR, cutoffDate:"", round1Start:"", currentRound:0, round1Order:[], roundSnapshots:{}, prioritySnapshot:null, baseTowerByWorker:{} };
 }
 function normalizeVacationControl(value) {
     const v=Object.assign(defaultVacationControl(), value||{});
-    v.planningYear=Number(v.planningYear)||YEAR+1;
+    v.planningYear=Number(v.planningYear)||YEAR;
     v.currentRound=Math.max(0,Math.min(4,Number(v.currentRound)||0));
     v.round1Order=Array.isArray(v.round1Order)?v.round1Order.map(String):[];
+    v.roundSnapshots=(v.roundSnapshots&&typeof v.roundSnapshots==='object')?v.roundSnapshots:{};
+    v.prioritySnapshot=(v.prioritySnapshot&&typeof v.prioritySnapshot==='object')?v.prioritySnapshot:null;
+    v.baseTowerByWorker=(v.baseTowerByWorker&&typeof v.baseTowerByWorker==='object')?v.baseTowerByWorker:{};
     return v;
 }
 let vacationControl = normalizeVacationControl(loadData("rozdelovnik_vacation_control", defaultVacationControl()));
@@ -6588,12 +6182,153 @@ function saveRound0LayoutRequest(workerId, patch) {
     setRound0Requests(workerId,list);
 }
 
+// Čerpání nároku vytvořené v 0. kole. D ve státní svátek (Ds/DSv) nárok D nečerpá.
+function getRound0UsedDays(workerId){
+    let dDays=0, rhDays=0;
+    getRound0Requests(workerId).forEach(function(req){
+        if(!req||!req.from||!req.to||!req.type) return;
+        const from=parseDateKey(req.from), to=parseDateKey(req.to);
+        if(!from||!to||to<from) return;
+        for(let d=new Date(from.getFullYear(),from.getMonth(),from.getDate()); d<=to; d.setDate(d.getDate()+1)){
+            if(d.getDay()===0||d.getDay()===6) continue;
+            if(req.type==="RH") rhDays++;
+            else if(req.type==="D" && !isCzechHolidayDate(d)) dDays++;
+        }
+    });
+    return {D:dDays,RH:rhDays};
+}
+/* Čerpání D/RH bereme z jediného zdroje: aktuálního Plánování dovolených.
+   Tím se stejně započtou požadavky z 0. kola i ručně uložené zkratky.
+   DSv/Ds věžáky získá, ale nárok D nečerpá. */
+function getVacationUsedDays(workerId){
+    const id=String(workerId), entries=getVacationCodeEntries();
+    let dDays=0, rhDays=0;
+    for(let month=0;month<12;month++){
+        const period=getPeriod(month), dates=getDates(period.from,period.to);
+        dates.forEach(function(date){
+            for(let row=0;row<VACATION_ROWS;row++){
+                const code=String(vacationPlan[vacationCellKey(month,row,date)]||"").trim();
+                if(!code) continue;
+                const e=entries.find(function(x){return x.code.toLocaleLowerCase("cs")===code.toLocaleLowerCase("cs");});
+                if(!e || String(e.worker.id)!==id) continue;
+                if(e.assignmentType==="D") dDays++;
+                else if(e.assignmentType==="RH") rhDays++;
+            }
+        });
+    }
+    return {D:dDays,RH:rhDays};
+}
+function getRoundRemainingDays(workerId, roundNumber){
+    const used=getVacationUsedDays(workerId);
+    // RH má vlastní desetidenní limit v 1. kole. Hodnota smí jít do mínusu.
+    if(roundNumber===1) return 10-used.RH;
+
+    // D se mezi koly přenáší. Každé další D kolo přidá dalších 10 dní
+    // k dosud nevyčerpanému zůstatku. Ds/DSv getVacationUsedDays do used.D nepočítá.
+    // Proto např. 8 D => ve 2. kole zbývá 2 a ve 3. kole 12;
+    // 15 D => ve 2. kole -5 a ve 3. kole 5.
+    if(roundNumber===2) return 10-used.D;
+    if(roundNumber===3) return 20-used.D;
+    if(roundNumber===4) return 30-used.D;
+    return 0;
+}
+
+/* Výchozí věžáky z uzavřeného roku 2026 podle dodaného přehledu.
+   Jsou použity jen jako počáteční historický snapshot; další kola už počítá systém. */
+const INITIAL_TOWER_2026_BY_NAME={
+    "Friedl":348,"Stryk":381,"Jiřičný":398,"Wzatek":405,"Koval":406,"Lakva":409,
+    "Stoklasa":419,"Klumpler":437,"Jurasz":445,"Fajkus":449,"Náhlovský":456,"Kožušník":479
+};
+function ensureBaseTowerValues(){
+    workers.forEach(function(w){
+        const id=String(w.id);
+        if(vacationControl.baseTowerByWorker[id]==null && INITIAL_TOWER_2026_BY_NAME[w.name]!=null)
+            vacationControl.baseTowerByWorker[id]=INITIAL_TOWER_2026_BY_NAME[w.name];
+    });
+}
+function vacationTowerTotals(ignoreFrozenFajkusRh){
+    const out={}; workers.forEach(function(w){out[String(w.id)]={D:0,RH:0,total:0};});
+    const entries=getVacationCodeEntries();
+    for(let month=0;month<12;month++){
+        const period=getPeriod(month), dates=getDates(period.from,period.to);
+        dates.forEach(function(date){
+            for(let row=0;row<VACATION_ROWS;row++){
+                const code=String(vacationPlan[vacationCellKey(month,row,date)]||"").trim(); if(!code) continue;
+                const e=entries.find(function(x){return x.code.toLocaleLowerCase("cs")===code.toLocaleLowerCase("cs");});
+                if(!e) continue;
+                const id=String(e.worker.id); if(!out[id]) out[id]={D:0,RH:0,total:0};
+                if(e.assignmentType==="D" || e.assignmentType==="DSv") out[id].D += Number(vacationAutoKoef(date,"D"))||0;
+                else if(e.assignmentType==="RH") { const k=vacationAutoKoef(date,"RH"); if(k!=="X") out[id].RH += Number(k)||0; }
+            }
+        });
+    }
+    /* Fajkus nemá vlastní nárok RH. Pro férové pořadí dostává průměr RH věžáků
+       ostatních pracovníků s nastaveným RH kódem. Po uzavření 1. kola se použije
+       zmrazená hodnota ze snapshotu 1. kola. */
+    const fajkus=workers.find(function(w){return String(w.name||"").trim().toLocaleLowerCase("cs")==="fajkus";});
+    if(fajkus){
+        const fid=String(fajkus.id);
+        let fairRh=null;
+        const snap1=!ignoreFrozenFajkusRh && vacationControl.roundSnapshots && vacationControl.roundSnapshots["1"];
+        if(snap1 && Array.isArray(snap1.rows)){
+            const frozen=snap1.rows.find(function(r){return String(r.workerId)===fid;});
+            if(frozen && Number.isFinite(Number(frozen.RH))) fairRh=Number(frozen.RH);
+        }
+        if(fairRh==null){
+            const eligible=workers.filter(function(w){
+                return String(w.id)!==fid && String(w.rh||"").trim()!=="";
+            });
+            const sum=eligible.reduce(function(acc,w){return acc+Number((out[String(w.id)]||{}).RH||0);},0);
+            fairRh=eligible.length?Math.round(sum/eligible.length):0;
+        }
+        if(!out[fid]) out[fid]={D:0,RH:0,total:0};
+        out[fid].RH=fairRh;
+    }
+    Object.keys(out).forEach(function(id){out[id].total=out[id].D+out[id].RH;});
+    return out;
+}
+function currentTowerRows(ignoreFrozenFajkusRh){
+    ensureBaseTowerValues(); const spent=vacationTowerTotals(!!ignoreFrozenFajkusRh);
+    return workers.map(function(w){const id=String(w.id), base=Number(vacationControl.baseTowerByWorker[id])||0, x=spent[id]||{D:0,RH:0,total:0}; return {workerId:id,name:w.name,base:base,D:x.D,RH:x.RH,total:base+x.total};});
+}
+function stableTowerOrder(rows, previousOrder){
+    const prev={}; (previousOrder||[]).forEach(function(id,i){prev[String(id)]=i;});
+    return rows.slice().sort(function(a,b){return a.total-b.total || ((prev[a.workerId]??9999)-(prev[b.workerId]??9999)) || a.name.localeCompare(b.name,"cs");}).map(function(x){return x.workerId;});
+}
+function getRoundOrder(roundNumber){
+    if(roundNumber===1) return vacationControl.round1Order||[];
+    const prev=vacationControl.roundSnapshots[String(roundNumber-1)];
+    return prev&&Array.isArray(prev.nextOrder)?prev.nextOrder:(vacationControl.round1Order||[]);
+}
+function closeVacationRound(roundNumber){
+    if(!isVacationAdmin()) return;
+    const nextYear=YEAR+1;
+    let msg=roundNumber<4 ? "Opravdu uzavřít "+roundNumber+". kolo?\\n\\nAktuální věžáky se uloží jako snapshot a vytvoří pořadí "+(roundNumber+1)+". kola." : "Opravdu uzavřít prioritu pro "+nextYear+"?\\n\\nAktuální věžáky se uloží jako konečný snapshot a vytvoří prioritu pro 1. kolo roku "+nextYear+".";
+    if(vacationControl.roundSnapshots[String(roundNumber)]) msg += "\n\nPOZOR: Toto kolo už je uzavřené. Pokud jste po uzavření provedl(a) změny, nová uzávěrka přepíše původní snapshot a znovu vytvoří pořadí následujícího kola.";
+    if(!confirm(msg)) return;
+    // Při opětovném uzavření 1. kola se Fajkusův RH průměr musí spočítat znovu
+    // z aktuálních RH věžáků ostatních pracovníků, nikoli převzít ze starého snapshotu.
+    const rows=currentTowerRows(roundNumber===1);
+    const previous=getRoundOrder(roundNumber);
+    const nextOrder=stableTowerOrder(rows,previous);
+    const snap={closedAt:new Date().toISOString(),round:roundNumber,rows:rows,nextOrder:nextOrder};
+    vacationControl.roundSnapshots[String(roundNumber)]=snap;
+    vacationControl.currentRound=Math.max(vacationControl.currentRound,roundNumber);
+    if(roundNumber===4) vacationControl.prioritySnapshot={year:nextYear,closedAt:snap.closedAt,rows:rows,order:nextOrder};
+    queueVacationControlCloudSave(); renderVacationPlanningControl();
+}
+function formatSnapshotTime(iso){ if(!iso) return ""; const d=new Date(iso); return isNaN(d)?"":d.toLocaleString("cs-CZ"); }
 
 function ensureRound1Order() {
+    ensureBaseTowerValues();
     const activeIds=workers.map(function(w){return String(w.id);});
-    const kept=(vacationControl.round1Order||[]).filter(function(id){return activeIds.includes(String(id));});
-    activeIds.forEach(function(id){if(!kept.includes(id)) kept.push(id);});
-    vacationControl.round1Order=kept;
+    const rows=workers.map(function(w){return {workerId:String(w.id),name:w.name,total:Number(vacationControl.baseTowerByWorker[String(w.id)])||0};});
+    const known=rows.some(function(x){return x.total>0;});
+    if(known) vacationControl.round1Order=stableTowerOrder(rows,vacationControl.round1Order);
+    else {
+        const kept=(vacationControl.round1Order||[]).filter(function(id){return activeIds.includes(String(id));});
+        activeIds.forEach(function(id){if(!kept.includes(id)) kept.push(id);}); vacationControl.round1Order=kept;
+    }
 }
 function addCalendarDays(dateKey, days) {
     const d=parseDateKey(dateKey); if(!d) return "";
@@ -6617,10 +6352,12 @@ function renderVacationPlanningControl() {
         el.addEventListener("change",function(){onchange(el.value);queueVacationControlCloudSave();renderVacationPlanningControl();});
         wrap.appendChild(el);grid.appendChild(wrap);
     }
-    field("Plánovací rok","number",vacationControl.planningYear,function(v){vacationControl.planningYear=Number(v)||YEAR+1;});
-    field("Uzávěrka věžáků","date",vacationControl.cutoffDate,function(v){vacationControl.cutoffDate=v;});
-    field("Začátek 1. kola","date",vacationControl.round1Start,function(v){vacationControl.round1Start=v;});
-    box.appendChild(grid);
+    if(admin){
+        field("Plánovací rok","number",vacationControl.planningYear,function(v){vacationControl.planningYear=Number(v)||YEAR+1;});
+        field("Uzávěrka věžáků","date",vacationControl.cutoffDate,function(v){vacationControl.cutoffDate=v;});
+        field("Začátek 1. kola","date",vacationControl.round1Start,function(v){vacationControl.round1Start=v;});
+        box.appendChild(grid);
+    }
 
     const n=workers.length;
     const roundStarts=[];
@@ -6700,8 +6437,9 @@ function renderVacationPlanningControl() {
         const tr=document.createElement("tr"), list=getRound0Requests(w.id);
         const pos=document.createElement("td"); pos.textContent=index+1; tr.appendChild(pos);
         const name=document.createElement("td"); name.textContent=w.name; tr.appendChild(name);
-        let dDays=0,rhDays=0, filled=0;
-        list.forEach(function(r){ const days=countWeekdaysInclusive(r.from,r.to); if(r.from||r.to||r.type) filled++; if(r.type==="D") dDays+=days; if(r.type==="RH") rhDays+=days; });
+        let filled=0;
+        list.forEach(function(r){ if(r.from||r.to||r.type) filled++; });
+        const used0=getRound0UsedDays(w.id), dDays=used0.D, rhDays=used0.RH;
         const summaryTd=document.createElement("td"); summaryTd.className="vpc-request-summary"; summaryTd.textContent=filled?filled+"×":"—"; summaryTd.title=filled?filled+" požadavek/požadavky":"Bez požadavku"; tr.appendChild(summaryTd);
         const dTd=document.createElement("td"); dTd.textContent=dDays||"—"; tr.appendChild(dTd);
         const rhTd=document.createElement("td"); rhTd.textContent=rhDays||"—"; tr.appendChild(rhTd);
@@ -6738,24 +6476,35 @@ function renderVacationPlanningControl() {
     });
     spaTable.appendChild(spaBody); spa.appendChild(spaTable); top.appendChild(spa);
     const defs=[
-        {num:1,label:"RH"},{num:2,label:"D"},{num:3,label:"D"},{num:4,label:"free for all"}
+        {num:1,label:"RH"},{num:2,label:"D"},{num:3,label:"D"},{num:4,label:"FFA"}
     ];
     defs.forEach(function(def,ri){
         const card=document.createElement("div"); card.className="vpc-round";
         const head=document.createElement("div"); head.className="vpc-round-head";
         const startKey=roundStarts[ri]||"";
-        head.innerHTML="<span>"+def.num+". kolo – "+def.label+"</span><small>"+(startKey?formatShortDateKey(startKey):"—")+"</small>";
-        card.appendChild(head);
+        const existingSnap=vacationControl.roundSnapshots[String(def.num)];
+        let activeRound=1;
+        while(activeRound<=4 && vacationControl.roundSnapshots[String(activeRound)]) activeRound++;
+        if(activeRound>4) activeRound=0;
+        const isActiveRound=(def.num===activeRound);
+        const isFutureRound=(activeRound>0 && def.num>activeRound);
+        const titleSpan=document.createElement("span"); titleSpan.textContent=def.num+". kolo – "+def.label; head.appendChild(titleSpan);
+        const headRight=document.createElement("span"); headRight.className="vpc-round-head-actions";
+        const small=document.createElement("small"); small.textContent=startKey?formatShortDateKey(startKey):"—"; headRight.appendChild(small);
+        const statusDot=document.createElement("span"); statusDot.className="vpc-round-status-dot "+(isActiveRound?"is-active":"is-inactive"); statusDot.title=isActiveRound?"Aktivní kolo":"Neaktivní / uzavřené kolo"; headRight.appendChild(statusDot);
+        if(admin){ const closeBtn=document.createElement("button"); closeBtn.type="button"; closeBtn.className="vpc-close-round-btn"; closeBtn.textContent=def.num<4?("Uzavřít "+def.num+". kolo"):("Uzavřít prioritu pro "+(YEAR+1)); closeBtn.addEventListener("click",function(){closeVacationRound(def.num);}); headRight.appendChild(closeBtn); }
+        head.appendChild(headRight); card.appendChild(head);
         const table=document.createElement("table"); table.className="vpc-order-table";
         table.innerHTML="<thead><tr><th>#</th><th>Pracovník</th><th>Datum</th><th>Zbývá</th></tr></thead>";
         const tb=document.createElement("tbody");
-        vacationControl.round1Order.forEach(function(workerId,index){
+        const roundOrder=getRoundOrder(def.num);
+        roundOrder.forEach(function(workerId,index){
             const tr=document.createElement("tr");
             const pos=document.createElement("td"); pos.textContent=index+1; tr.appendChild(pos);
             const name=document.createElement("td");
             const w=workers.find(function(x){return String(x.id)===workerId;});
             name.textContent=w?w.name:"—";
-            if(ri===0 && admin){
+            if(ri===0 && admin && !vacationControl.roundSnapshots["1"]){
                 tr.draggable=true; tr.classList.add("vpc-draggable-row");
                 tr.title="Přetažením změň pořadí 1. kola";
                 tr.addEventListener("dragstart",function(e){
@@ -6774,15 +6523,15 @@ function renderVacationPlanningControl() {
                     vacationControl.round1Order.splice(index,0,moved);
                     renderVacationPlanningControl();
                 });
-            } else if(ri>0) name.classList.add("vpc-round-empty");
+            } else if(isFutureRound) name.classList.add("vpc-round-empty");
             tr.appendChild(name);
             const day=document.createElement("td");
             day.textContent=startKey?formatShortDateKey(addCalendarDays(startKey,index)):"—";
-            if(ri>0) day.classList.add("vpc-round-empty");
+            if(isFutureRound) day.classList.add("vpc-round-empty");
             tr.appendChild(day);
             const remain=document.createElement("td");
-            // Grafický prototyp: skutečný výpočet bude napojen v datové fázi.
-            remain.textContent="—"; remain.title="Počet dní, které má pracovník v tomto kole ještě k dispozici";
+            remain.textContent=String(getRoundRemainingDays(workerId,def.num));
+            remain.title=def.num===1?"Zbývá RH z 10 dní; při přečerpání se zobrazí záporná hodnota":"Zbývá D včetně převodu nevyčerpaných dní z předchozích D kol; při přečerpání se zobrazí záporná hodnota";
             tr.appendChild(remain); tb.appendChild(tr);
         });
         table.appendChild(tb); card.appendChild(table); rounds.appendChild(card);
@@ -6792,12 +6541,13 @@ function renderVacationPlanningControl() {
     const rhead=document.createElement("div"); rhead.className="vpc-round-head";
     rhead.innerHTML="<span>Živé pořadí pracovníků</span><small>podle věžáků</small>"; ranking.appendChild(rhead);
     const rt=document.createElement("table");
-    rt.innerHTML="<thead><tr><th>#</th><th>Pracovník</th><th>Věžáky<br>celkem</th><th>D<br>k dispozici</th><th>Věžáky<br>D</th><th>Věžáky<br>RH</th><th>D+RH</th></tr></thead>";
+    rt.innerHTML="<thead><tr><th>#</th><th>Pracovník</th><th>Věžáky<br>celkem</th><th>Dní D<br>k dispozici</th><th>Věžáky<br>za D</th><th>Věžáky<br>za RH</th><th>Věžáky<br>za D+RH</th></tr></thead>";
     const rtb=document.createElement("tbody");
-    vacationControl.round1Order.forEach(function(workerId,index){
-        const w=workers.find(function(x){return String(x.id)===workerId;});
+    const liveRows=currentTowerRows(); const liveOrder=stableTowerOrder(liveRows,getRoundOrder(Math.max(1,vacationControl.currentRound+1))); const liveMap={}; liveRows.forEach(function(x){liveMap[x.workerId]=x;});
+    liveOrder.forEach(function(workerId,index){
+        const w=workers.find(function(x){return String(x.id)===workerId;}), x=liveMap[workerId]||{base:0,D:0,RH:0,total:0};
         const tr=document.createElement("tr");
-        [index+1,w?w.name:"—","—","—","—","—","—"].forEach(function(v,i){const td=document.createElement("td");td.textContent=v;if(i>1)td.className="muted-demo";tr.appendChild(td);});
+        [index+1,w?w.name:"—",x.total,Math.max(0,30-getVacationUsedDays(workerId).D),x.D,x.RH,x.D+x.RH].forEach(function(v){const td=document.createElement("td");td.textContent=v;tr.appendChild(td);});
         rtb.appendChild(tr);
     });
     rt.appendChild(rtb); ranking.appendChild(rt); top.appendChild(ranking);
@@ -7010,6 +6760,41 @@ async function saveVacationManualChanges() {
     const changes=Object.values(vacationManualChanges);
     if(!changes.length) return;
     const entries=getVacationCodeEntries();
+
+    /* Běžný pracovník nesmí při uložení překročit nárok aktivního kola.
+       Admin má výjimku a může zůstatek dostat i do mínusu. */
+    if(!isVacationAdmin()){
+        let activeRound=1;
+        while(activeRound<=4 && vacationControl.roundSnapshots[String(activeRound)]) activeRound++;
+        if(activeRound<=4){
+            const affected=new Set();
+            changes.forEach(function(ch){
+                [ch.original,ch.current].forEach(function(code){
+                    const e=entries.find(function(x){return x.code.toLocaleLowerCase("cs")===String(code||"").toLocaleLowerCase("cs");});
+                    if(e) affected.add(String(e.worker.id));
+                });
+            });
+            for(const workerId of affected){
+                const used=getVacationUsedDays(workerId);
+                const w=workers.find(function(x){return String(x.id)===workerId;});
+                const name=w?w.name:"Pracovník";
+                if(activeRound===1 && used.RH>10){
+                    alert(name+": v 1. kole lze čerpat nejvýše 10 dní RH. Pro navýšení kontaktujte administrátora.");
+                    updateVacationManualButtons();
+                    return;
+                }
+                if(activeRound>=2){
+                    const limit=activeRound===2?10:(activeRound===3?20:30);
+                    if(used.D>limit){
+                        const available=Math.max(0,limit-(used.D-(used.D-limit)));
+                        alert(name+": v tomto kole je možné čerpat nejvýše "+limit+" dní D včetně převodu z předchozích kol. Pro navýšení kontaktujte administrátora.");
+                        updateVacationManualButtons();
+                        return;
+                    }
+                }
+            }
+        }
+    }
     const btn=document.getElementById("saveVacationManualBtn");
     if(btn){btn.disabled=true;btn.textContent="Ukládám…";}
     try {
@@ -7054,6 +6839,7 @@ async function saveVacationManualChanges() {
         saveData("rozdelovnik_schedule",schedule);
         vacationManualChanges={};
         updateVacationManualButtons();
+        renderVacationPlanningControl();
         setCloudStatus(cloudSession ? "Online • uloženo" : "Uloženo lokálně");
     } catch(err) {
         console.error("Uložení ručních změn dovolených:",err);
@@ -7111,7 +6897,14 @@ function renderVacationPlanning() {
         const title=document.createElement("h3");
         title.className="vacation-month-title";
         const period=getPeriod(month);
-        title.textContent=monthNames[month]+"  ("+formatPeriodDate(period.from)+" – "+formatPeriodDate(period.to)+")";
+        const monthButton=document.createElement("button");
+        monthButton.type="button";
+        monthButton.className="vacation-month-link";
+        monthButton.textContent=monthNames[month];
+        monthButton.title="Otevřít "+monthNames[month]+" v měsíčním rozdělovníku";
+        monthButton.addEventListener("click",function(){ showMonth(month); });
+        title.appendChild(monthButton);
+        title.appendChild(document.createTextNode("  ("+formatPeriodDate(period.from)+" – "+formatPeriodDate(period.to)+")"));
         section.appendChild(title);
         const wrapper=document.createElement("div");
         wrapper.className="vacation-table-wrapper";
