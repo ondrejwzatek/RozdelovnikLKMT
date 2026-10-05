@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- RozdelovnikLKMT FINAL multi-year v58: VV statistika perzistentni lokalne i v Supabase -->
 <html lang="cs">
 <head>
 <meta charset="UTF-8">
@@ -186,6 +187,62 @@ h1 {
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+/* v50: společná středová navigace; pravý okraj zůstává volný pro cloud stav/odhlášení */
+.toolbar.toolbar-centered {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto minmax(180px, 1fr);
+    align-items: center;
+}
+.toolbar.toolbar-centered > h2 {
+    justify-self: start;
+}
+.toolbar.toolbar-centered > .toolbar-buttons {
+    grid-column: 2;
+    justify-self: center;
+    justify-content: center;
+    align-items: center;
+}
+@media (max-width: 900px) {
+    .toolbar.toolbar-centered {
+        grid-template-columns: 1fr;
+    }
+    .toolbar.toolbar-centered > h2,
+    .toolbar.toolbar-centered > .toolbar-buttons {
+        grid-column: 1;
+        justify-self: center;
+    }
+}
+
+/* Přepínání měsíců přímo v měsíčním rozdělovníku */
+.month-navigation {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.month-nav-arrow {
+    min-width: 38px;
+    font-size: 18px;
+    font-weight: bold;
+}
+.month-nav-arrow:disabled {
+    opacity: .35;
+    cursor: default;
+    background: #f3f4f6;
+}
+.month-nav-select {
+    border: 1px solid #1769aa;
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: #dceeff;
+    color: #123b5d;
+    font-weight: bold;
+    cursor: pointer;
+}
+.month-nav-select:focus {
+    outline: 2px solid rgba(23,105,170,.25);
+    outline-offset: 1px;
 }
 
 
@@ -946,7 +1003,7 @@ h1 {
 
 <div id="cloudLoginOverlay">
   <div class="cloud-login-card">
-    <h2>Rozdělovník 2026</h2>
+    <h2>Rozdělovník 2027</h2>
     <p>Přihlášení k centrálním datům</p>
     <label>E-mail</label>
     <input id="cloudEmail" type="email" autocomplete="username">
@@ -970,7 +1027,14 @@ h1 {
 
     <div class="header">
 
-        <h1 id="homeMainTitle">Rozdělovník 2026</h1>
+        <h1 id="homeMainTitle">Rozdělovník 2027</h1>
+
+        <div class="display-year-control" style="display:flex;justify-content:center;align-items:center;gap:8px;margin:4px 0 10px;font-weight:700">
+            <label for="displayYearSelect">Zobrazený rok</label>
+            <select id="displayYearSelect" style="height:34px;border:1px solid #b8c2cc;border-radius:6px;padding:4px 10px;background:#fff;font:inherit;font-weight:700">
+                <option value="2026">2026</option><option value="2027">2027</option><option value="2028">2028</option>
+            </select>
+        </div>
 
         <div class="year-start-control">
             <label>Rok
@@ -1033,16 +1097,18 @@ h1 {
 
 <div id="workersPage" class="hidden">
 
-    <div class="toolbar sticky-page-header">
+    <div class="toolbar sticky-page-header toolbar-centered">
 
         <h2>Správa pracovníků</h2>
 
-        <button
-            type="button"
-            class="button"
-            onclick="showHome()">
-            ← Zpět
-        </button>
+        <div class="toolbar-buttons">
+            <button
+                type="button"
+                class="button"
+                onclick="showHome()">
+                ← Zpět
+            </button>
+        </div>
 
     </div>
 
@@ -1053,7 +1119,7 @@ h1 {
             Zde můžeš pracovníky přidávat, mazat, přejmenovávat,
             měnit jejich údaje a pořadí. Sloupec D vyplňuješ ručně; RH, Ang
             a D svátek se doplní automaticky (např. MK → MKR, MKa, MKs).
-            Fond D/RH určuje počet hodin za jeden den dovolené (např. 6,8 nebo 7,5).
+            Nárok na RH určuje, zda pracovník může RH plánovat; pracovník bez nároku dostává pro pořadí průměr RH věžáků pracovníků s nárokem. Fond D/RH určuje počet hodin za jeden den dovolené (např. 6,8 nebo 7,5).
             Přesun pracovníka zachová všechny jeho směny, přesčasy i statistické údaje.
         </p>
 
@@ -1073,6 +1139,8 @@ h1 {
                         <th>D</th>
 
                         <th>RH</th>
+
+                        <th>Nárok na RH</th>
 
                         <th>Ang</th>
 
@@ -1121,11 +1189,14 @@ h1 {
 ===================================================== -->
 
 <div id="vacationPage" class="hidden">
-    <div class="toolbar sticky-page-header">
+    <div class="toolbar sticky-page-header toolbar-centered">
         <h2>Plánování dovolených</h2>
-        <button type="button" class="button vacation-manual-save" id="saveVacationManualBtn" onclick="saveVacationManualChanges()" disabled>Uložit změny</button>
-        <button type="button" class="button vacation-manual-discard" id="discardVacationManualBtn" onclick="discardVacationManualChanges()" disabled>Zahodit změny</button>
-        <button type="button" class="button" onclick="showHome()">← Zpět</button>
+        <div class="toolbar-buttons">
+            <button type="button" class="button vacation-manual-save" id="saveVacationManualBtn" onclick="saveVacationManualChanges()" disabled>Uložit změny</button>
+            <button type="button" class="button vacation-manual-discard" id="discardVacationManualBtn" onclick="discardVacationManualChanges()" disabled>Zahodit změny</button>
+            <button type="button" class="button" id="resyncVacationYearBtn" onclick="resyncVacationYearToSchedule()" title="Doplní chybějící D/RH/Ang/D svátek z Plánování dovolených do měsíčních rozdělovníků. Existující směny nepřepisuje.">Synchronizovat rok</button>
+            <button type="button" class="button" onclick="showHome()">← Zpět</button>
+        </div>
     </div>
     <div class="vacation-page">
         <div id="vacationPlanningControl"></div>
@@ -1138,9 +1209,11 @@ h1 {
      PŘEHLED LÁZNÍ
 ===================================================== -->
 <div id="spaInfoPage" class="hidden">
-    <div class="toolbar sticky-page-header">
+    <div class="toolbar sticky-page-header toolbar-centered">
         <h2>Přehled lázní</h2>
-        <button type="button" class="button" onclick="showHome()">← Zpět</button>
+        <div class="toolbar-buttons">
+            <button type="button" class="button" onclick="showHome()">← Zpět</button>
+        </div>
     </div>
     <div class="spa-info-page">
         <p class="spa-info-intro">Přehled lázeňských domů, cen, termínů a kontaktů podle poskytnuté nabídky. Přeškrtnuté/neplatné nabídky nejsou uvedeny.</p>
@@ -1157,9 +1230,9 @@ h1 {
 ===================================================== -->
 
 <div id="legendPage" class="hidden">
-    <div class="toolbar sticky-page-header">
+    <div class="toolbar sticky-page-header toolbar-centered">
         <h2>Legenda směn</h2>
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div class="toolbar-buttons">
             <button type="button" class="button" onclick="exportLegend()">Export legendy</button>
             <button type="button" class="button" onclick="closeLegendPage()">← Zpět</button>
         </div>
@@ -1176,11 +1249,17 @@ h1 {
 
 <div id="monthPage" class="hidden">
 
-    <div class="toolbar">
+    <div class="toolbar toolbar-centered">
 
         <h2 id="monthTitle"></h2>
 
         <div class="toolbar-buttons">
+
+            <div class="month-navigation" aria-label="Přepínání měsíců">
+                <button id="prevMonthButton" type="button" class="button month-nav-arrow" onclick="changeMonth(-1)" title="Předchozí měsíc">‹</button>
+                <select id="monthNavigationSelect" class="month-nav-select" onchange="showMonth(Number(this.value))" title="Vybrat měsíc"></select>
+                <button id="nextMonthButton" type="button" class="button month-nav-arrow" onclick="changeMonth(1)" title="Následující měsíc">›</button>
+            </div>
 
             <button
                 type="button"
@@ -1275,6 +1354,7 @@ let cloudVacationPlanSavePending = false;
 let cloudScheduleReady = false;
 let cloudScheduleSaving = false;
 let cloudScheduleSavePending = false;
+let cloudScheduleManualLock = false;
 let cloudScheduleSaveTimer = null;
 let cloudVacationControlReady = false;
 let cloudVacationControlSaveTimer = null;
@@ -1315,13 +1395,19 @@ async function manualCloudSave() {
     if (btn) btn.disabled = true;
     setCloudStatus("Ukládám…", true);
     try {
+        /* v56: horní tlačítko Uložit musí nejdřív potvrdit i rozpracované
+           ruční změny v právě otevřeném měsíci. Dříve umělo jen upsertovat
+           neprázdné buňky, takže vymazaná směna mohla v DB zůstat. */
+        if (Object.keys(manualScheduleChanges || {}).length) {
+            await saveManualScheduleChanges();
+        }
         await saveLegendToCloudNow();
         await saveWorkersToCloudNow();
         await savePeriodsToCloudNow(true);
         await saveVacationWeekSettingsToCloudNow(true);
         await saveVacationPlanToCloudNow(true);
         await saveScheduleToCloudNow(true);
-        await saveVacationControlToCloudNow(true);
+        await saveVacationControlToCloudNow(true); await saveCurrentYearProfileToCloud();
         setCloudStatus("Online • uloženo", true);
     } catch (e) {
         console.error(e);
@@ -1538,6 +1624,65 @@ function queueWorkersCloudSave() {
 }
 
 
+
+const YEAR_PROFILE_PREFIX = "year_profile_";
+function yearProfileKey(year){ return YEAR_PROFILE_PREFIX + String(year); }
+function localYearKey(base, year){ return base + "_" + String(year); }
+function defaultPeriodSetupForYear(year){ return {startDate:String(year)+"-01-01",weeks:Array(12).fill(4)}; }
+function makeYearProfile(){
+    return {
+        year:YEAR,
+        periodSetup: periodSetup || defaultPeriodSetupForYear(YEAR),
+        vacationVV: vacationVV || {}, vacationKoef: vacationKoef || {}, vacationWeekNote: vacationWeekNote || {},
+        vacationControl: vacationControl || defaultVacationControl(),
+        manualStatistics: manualStatistics || {}
+    };
+}
+function applyYearProfile(profile){
+    profile=profile||{};
+    periodSetup=profile.periodSetup || defaultPeriodSetupForYear(YEAR);
+    vacationVV=profile.vacationVV || {};
+    vacationKoef=profile.vacationKoef || {};
+    vacationWeekNote=profile.vacationWeekNote || {};
+    vacationControl=normalizeVacationControl(profile.vacationControl || defaultVacationControl());
+    vacationControl.planningYear=YEAR;
+    manualStatistics=profile.manualStatistics || {};
+    saveData(localYearKey("rozdelovnik_period_setup",YEAR),periodSetup);
+    saveData(localYearKey("rozdelovnik_vacation_vv",YEAR),vacationVV);
+    saveData(localYearKey("rozdelovnik_vacation_koef",YEAR),vacationKoef);
+    saveData(localYearKey("rozdelovnik_vacation_week_note",YEAR),vacationWeekNote);
+    saveData(localYearKey("rozdelovnik_vacation_control",YEAR),vacationControl);
+    saveData(localYearKey("rozdelovnik_manual_statistics",YEAR),manualStatistics);
+    recalculateMonthPeriods();
+}
+async function saveCurrentYearProfileToCloud(){
+    if(!cloudSession) return;
+    const profile=makeYearProfile();
+    const r=await cloudFetch("app_settings?on_conflict=setting_key",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({setting_key:yearProfileKey(YEAR),setting_value:profile,updated_at:new Date().toISOString()})});
+    if(!r.ok) throw new Error("Uložení ročního profilu: "+await r.text());
+}
+async function loadYearProfileFromCloud(year){
+    if(!cloudSession) return false;
+    const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(yearProfileKey(year))+"&select=setting_value",{method:"GET"});
+    if(!r.ok) throw new Error("Načtení ročního profilu: "+await r.text());
+    const rows=await r.json();
+    if(rows.length && rows[0].setting_value){ applyYearProfile(rows[0].setting_value); return true; }
+    return false;
+}
+async function switchDisplayedYear(newYear){
+    newYear=Math.max(2000,Math.min(2100,Number(newYear)||YEAR));
+    if(newYear===YEAR) return;
+    try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
+    YEAR=newYear; saveData("rozdelovnik_app_year",YEAR); refreshHolidaySet();
+    let loaded=false;
+    try{ loaded=await loadYearProfileFromCloud(YEAR); }catch(e){ console.error(e); }
+    if(!loaded){
+        applyYearProfile({year:YEAR,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{}});
+        try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
+    }
+    syncYearStartControls(); renderMonths();
+    if(typeof renderVacationPlanningPage==="function" && document.getElementById("vacationPlanningPage") && !document.getElementById("vacationPlanningPage").classList.contains("hidden")) renderVacationPlanningPage();
+}
 async function loadPeriodsFromCloud() {
     setCloudStatus("Načítám období…");
     const r = await cloudFetch("month_settings?select=*&order=month.asc", {method:"GET"});
@@ -1667,12 +1812,13 @@ function queueVacationWeekCloudSave() {
 
 async function loadVacationControlFromCloud() {
     if (!cloudSession) return;
-    const r = await cloudFetch("app_settings?setting_key=eq.vacation_planning_control&select=setting_value", {method:"GET"});
+    const r = await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(yearProfileKey(YEAR))+"&select=setting_value", {method:"GET"});
     if (!r.ok) throw new Error("Načtení řízení plánování: " + await r.text());
     const rows = await r.json();
     if (rows.length && rows[0].setting_value) {
-        vacationControl = normalizeVacationControl(rows[0].setting_value);
-        saveData("rozdelovnik_vacation_control", vacationControl);
+        const yp=rows[0].setting_value;
+        vacationControl = normalizeVacationControl(yp.vacationControl || yp);
+        saveData(localYearKey("rozdelovnik_vacation_control",YEAR), vacationControl);
     }
     cloudVacationControlReady = true;
     if (document.getElementById("vacationPage") && !document.getElementById("vacationPage").classList.contains("hidden")) renderVacationPlanningControl();
@@ -1681,16 +1827,11 @@ async function loadVacationControlFromCloud() {
 async function saveVacationControlToCloudNow(force) {
     if (!cloudSession) return;
     if (!force && !cloudVacationControlReady) return;
-    const r = await cloudFetch("app_settings?on_conflict=setting_key", {
-        method:"POST",
-        headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
-        body:JSON.stringify({setting_key:"vacation_planning_control",setting_value:vacationControl,updated_at:new Date().toISOString()})
-    });
-    if (!r.ok) throw new Error("Uložení řízení plánování: " + await r.text());
+    await saveCurrentYearProfileToCloud();
 }
 
 function queueVacationControlCloudSave() {
-    saveData("rozdelovnik_vacation_control", vacationControl);
+    saveData(localYearKey("rozdelovnik_vacation_control",YEAR), vacationControl);
     if (!cloudVacationControlReady || !cloudSession) return;
     clearTimeout(cloudVacationControlSaveTimer);
     cloudVacationControlSaveTimer=setTimeout(function(){ saveVacationControlToCloudNow(false).catch(console.error); },250);
@@ -1858,13 +1999,31 @@ function scheduleKeyParts(key) {
     return { date: text.slice(0, 10), workerId: text.slice(11) };
 }
 
+/* Jednotný parser klíče používáme i při dávkovém ručním ukládání.
+   Je záměrně totožný se scheduleKeyParts, aby DELETE mířil vždy na
+   přesný zdrojový den směny – i u 19 / SL-19 přes půlnoc. */
+function parseWorkerKey(key) {
+    return scheduleKeyParts(key);
+}
+
 function scheduleValueToAssignment(value) {
-    const item = findLegendItem(value);
-    return item ? String(item.type || "").trim() : "";
+    const raw = String(value || "");
+    const carryPrefix = "__carryin__:";
+    const isCarryIn = raw.indexOf(carryPrefix) === 0;
+    const legendId = isCarryIn ? raw.slice(carryPrefix.length) : raw;
+    const item = findLegendItem(legendId);
+    if (!item) return "";
+    const type = String(item.type || "").trim();
+    return isCarryIn ? carryPrefix + type : type;
 }
 
 function assignmentToScheduleValue(assignment) {
-    return findLegendIdByType(String(assignment || "").trim());
+    const raw = String(assignment || "").trim();
+    const carryPrefix = "__carryin__:";
+    const isCarryIn = raw.indexOf(carryPrefix) === 0;
+    const type = isCarryIn ? raw.slice(carryPrefix.length) : raw;
+    const legendId = findLegendIdByType(type);
+    return legendId ? (isCarryIn ? carryPrefix + legendId : legendId) : "";
 }
 
 function scheduleToCloudRows() {
@@ -1890,18 +2049,21 @@ async function loadScheduleFromCloud() {
     const r = await cloudFetch("monthly_schedule?select=*&order=plan_date.asc,worker_id.asc", {method:"GET"});
     if (!r.ok) throw new Error("Načtení měsíčního rozdělovníku: " + await r.text());
     const rows = await r.json();
-    if (rows.length) {
-        schedule = {};
-        rows.forEach(function(row) {
-            const dateKey = String(row.plan_date || "");
-            const workerId = String(row.worker_id || "");
-            const legendId = assignmentToScheduleValue(row.assignment);
-            if (dateKey && workerId && legendId) schedule[dateKey + "_" + workerId] = legendId;
-        });
-        localStorage.setItem("rozdelovnik_schedule", JSON.stringify(schedule));
-    } else {
-        await saveScheduleToCloudNow(true);
-    }
+
+    /* v55: po přihlášení je pro měsíční rozdělovník autoritativní Supabase.
+       Lokální cache nesmí doplňovat ani obnovovat směny, které už byly v cloudu
+       smazány. Proto schedule VŽDY sestavíme znovu pouze z odpovědi DB – i když
+       je odpověď prázdná. Dřívější větev při prázdné DB naopak nahrála starý
+       localStorage zpět do cloudu, což mohlo oživovat smazané směny. */
+    schedule = {};
+    rows.forEach(function(row) {
+        const dateKey = String(row.plan_date || "");
+        const workerId = String(row.worker_id || "");
+        const legendId = assignmentToScheduleValue(row.assignment);
+        if (dateKey && workerId && legendId) schedule[dateKey + "_" + workerId] = legendId;
+    });
+    localStorage.setItem("rozdelovnik_schedule", JSON.stringify(schedule));
+
     cloudScheduleReady = true;
     if (currentMonth !== null) renderTable();
     setCloudStatus("Online • měsíční rozdělovník synchronizován");
@@ -1909,6 +2071,9 @@ async function loadScheduleFromCloud() {
 
 async function saveScheduleToCloudNow(force) {
     if (!cloudSession) throw new Error("Nejste přihlášen.");
+    /* v53: během explicitního dávkového uložení nesmí paralelní obecný upsert
+       vrátit právě smazanou směnu zpět do databáze. */
+    if (cloudScheduleManualLock) { cloudScheduleSavePending = true; return; }
     if (!force && !cloudScheduleReady) return;
     if (cloudScheduleSaving) { cloudScheduleSavePending = true; return; }
     cloudScheduleSaving = true;
@@ -1923,9 +2088,26 @@ async function saveScheduleToCloudNow(force) {
             if (!r.ok) throw new Error("Zápis měsíčního rozdělovníku: " + await r.text());
         }
         if (force) {
-            const verify = await cloudFetch("monthly_schedule?select=plan_date,worker_id,assignment", {method:"GET"});
+            /* v56: force-save je skutečná synchronizace, ne pouze upsert.
+               Řádek, který v lokálním schedule už neexistuje, musí být odstraněn
+               i z monthly_schedule. To řeší obecné mazání (6, 19, SL-19...). */
+            let verify = await cloudFetch("monthly_schedule?select=id,plan_date,worker_id,assignment", {method:"GET"});
             if (!verify.ok) throw new Error("Kontrola měsíčního rozdělovníku: " + await verify.text());
-            const cloudRows = await verify.json();
+            let cloudRows = await verify.json();
+            const wanted = new Map();
+            rows.forEach(function(row){ wanted.set(row.plan_date + "_" + row.worker_id, row.assignment); });
+            for (const c of cloudRows) {
+                const key = String(c.plan_date) + "_" + String(c.worker_id);
+                if (!wanted.has(key)) {
+                    const del = await cloudFetch("monthly_schedule?id=eq." + encodeURIComponent(c.id), {
+                        method:"DELETE", headers:{"Prefer":"return=minimal"}
+                    });
+                    if (!del.ok) throw new Error("Mazání staré směny: " + await del.text());
+                }
+            }
+            verify = await cloudFetch("monthly_schedule?select=plan_date,worker_id,assignment", {method:"GET"});
+            if (!verify.ok) throw new Error("Kontrola po synchronizaci: " + await verify.text());
+            cloudRows = await verify.json();
             for (const row of rows) {
                 const found = cloudRows.some(function(c) {
                     return String(c.plan_date) === row.plan_date && String(c.worker_id) === row.worker_id && String(c.assignment) === row.assignment;
@@ -1994,7 +2176,7 @@ async function initCloud() {
     try { cloudSession = JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY) || "null"); } catch(e) { cloudSession = null; }
     if (cloudSession && cloudSession.refresh_token && await cloudRefreshSession()) {
         overlay.classList.add("hidden"); status.classList.remove("hidden");
-        try { await loadLegendFromCloud(); await loadWorkersFromCloud(); await loadPeriodsFromCloud(); await loadVacationWeekSettingsFromCloud(); await loadVacationPlanFromCloud(); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); } catch(e) { console.error(e); setCloudStatus("Chyba připojení"); }
+        try { await loadLegendFromCloud(); await loadWorkersFromCloud(); await loadPeriodsFromCloud(); await loadVacationWeekSettingsFromCloud(); await loadVacationPlanFromCloud(); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); if(!(await loadYearProfileFromCloud(YEAR))){ if(YEAR===2027){ await saveCurrentYearProfileToCloud(); } else { applyYearProfile({year:YEAR,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{}}); await saveCurrentYearProfileToCloud(); } } } catch(e) { console.error(e); setCloudStatus("Chyba připojení"); }
     }
 }
 
@@ -2012,6 +2194,7 @@ document.addEventListener("DOMContentLoaded", function() {
             await loadVacationPlanFromCloud();
             await loadScheduleFromCloud();
             await loadVacationControlFromCloud();
+            if(!(await loadYearProfileFromCloud(YEAR))){ if(YEAR===2027){ await saveCurrentYearProfileToCloud(); } else { applyYearProfile({year:YEAR,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{}}); await saveCurrentYearProfileToCloud(); } }
         } catch(e) { error.textContent = e.message; }
     });
     document.getElementById("cloudPassword").addEventListener("keydown", function(e) { if (e.key === "Enter") document.getElementById("cloudLoginBtn").click(); });
@@ -2029,7 +2212,7 @@ document.addEventListener("DOMContentLoaded", function() {
    ZÁKLADNÍ ÚDAJE
 ===================================================== */
 
-let YEAR = Number(loadData("rozdelovnik_app_year", 2026)) || 2026;
+let YEAR = Number(loadData("rozdelovnik_app_year", 2027)) || 2027;
 
 const monthNames = [
     "Leden",
@@ -2132,9 +2315,11 @@ function saveData(key, value) {
         if ((key === "rozdelovnik_period_setup" || key === "rozdelovnik_periods") && typeof queuePeriodsCloudSave === "function") {
             queuePeriodsCloudSave();
         }
-        if (key === "rozdelovnik_schedule" && typeof queueScheduleCloudSave === "function") {
-            queueScheduleCloudSave();
-        }
+        /* v54: monthly_schedule se NESMÍ synchronizovat obecným full-upsertem.
+           Full-upsert neumí vyjádřit smazání a mohl po explicitním DELETE znovu
+           vytvořit starou směnu (typicky 19 / SL-19). Měsíční rozdělovník se
+           zapisuje pouze explicitními operacemi buněk / dávkovým Uložit změny
+           a synchronizací dovolených. */
 
     } catch (error) {
 
@@ -3356,251 +3541,169 @@ function calculateStatistics(
 
     let workedHours = 0;
     let shiftCount = 0;
-
     let weekendHours = 0;
     let nightHours = 0;
     let holidayHours = 0;
-
     let daysD = 0;
     let hoursD = 0;
-
     let daysRH = 0;
     let hoursRH = 0;
     let daysV = 0;
     let hoursV = 0;
 
+    const dateKeys = new Set(dates.map(makeDateKey));
+    const worker = workers.find(function(currentWorker){ return currentWorker.id === workerId; });
+    const dRhFund = worker && Number.isFinite(Number(worker.dRhFund)) ? Number(worker.dRhFund) : 6.8;
 
-    dates.forEach(
-        function(date) {
+    /* Pro směny přes půlnoc musíme zahrnout i směnu, která začala den před
+       prvním dnem zobrazeného období. Tím se např. 31.1. 19:30–1.2. 07:30
+       automaticky rozdělí mezi lednovou a únorovou statistiku. */
+    const candidateDates = dates.slice();
+    if (dates.length) {
+        const previousDate = new Date(dates[0]);
+        previousDate.setDate(previousDate.getDate() - 1);
+        candidateDates.unshift(previousDate);
+    }
 
-            const key =
-                makeWorkerKey(
-                    date,
-                    workerId
-                );
+    candidateDates.forEach(function(date) {
+        const startDateKey = makeDateKey(date);
+        const startsInsidePeriod = dateKeys.has(startDateKey);
+        const key = makeWorkerKey(date, workerId);
+        const assignment = schedule[key];
+        if (!assignment) return;
 
+        const assignmentText = String(assignment);
+        const isCarryIn = assignmentText.indexOf("__carryin__:") === 0;
+        const legendAssignment = isCarryIn ? assignmentText.slice("__carryin__:".length) : assignmentText;
+        const item = findLegendItem(legendAssignment);
+        if (!item) return;
 
-            const assignment =
-                schedule[key];
+        /* Přenos je uložen v prvním viditelném dni, ale výpočetně směna
+           začala předchozí kalendářní den. Počet směn se proto v novém
+           rozdělovníku nezvyšuje; započte se jen část po půlnoci. */
+        if (isCarryIn) {
+            date = new Date(date);
+            date.setDate(date.getDate() - 1);
+        }
+        const effectiveStartsInsidePeriod = isCarryIn ? false : startsInsidePeriod;
 
+        const itemType = String(item.type || "").trim().toLocaleUpperCase("cs");
 
-            if (!assignment) {
+        if (itemType === "D") {
+            if (effectiveStartsInsidePeriod) { daysD += 1; hoursD += dRhFund; }
+            return;
+        }
 
-                return;
-            }
+        /* DSv = placená dovolená ve svátek: nečerpá den D,
+           ale do Hodin D se započítá celý fond D/RH pracovníka. */
+        if (itemType === "DSV" || itemType === "DS") {
+            if (effectiveStartsInsidePeriod) { hoursD += dRhFund; }
+            return;
+        }
 
+        if (itemType === "RH") {
+            if (effectiveStartsInsidePeriod) { daysRH += 1; hoursRH += dRhFund; }
+            return;
+        }
 
-            const item =
-                findLegendItem(
-                    assignment
-                );
+        const isSickLeave =
+            item.special === "V" ||
+            itemType.indexOf("SL") === 0 ||
+            String(item.description || "").toLocaleLowerCase("cs").indexOf("sick leave") !== -1;
 
+        const parsed = item.time ? parseTimeRange(item.time) : null;
+        const fpdHours = Number(String(item.fpd ?? "").replace(",", "."));
 
-            if (!item) {
+        if (isSickLeave) {
+            if (effectiveStartsInsidePeriod) daysV += 1;
 
-                return;
-            }
-
-            const itemType = String(item.type || "").trim().toLocaleUpperCase("cs");
-
-            /* DOVOLENÁ – pouze přesný typ D. DSv sem nepatří.
-               Hodinový fond je vlastnost konkrétního pracovníka ze Správy pracovníků. */
-
-            if (
-                itemType === "D"
-            ) {
-
-                daysD += 1;
-
-                const worker =
-                    workers.find(
-                        function(currentWorker) {
-                            return currentWorker.id === workerId;
-                        }
-                    );
-
-                const dRhFund =
-                    worker &&
-                    Number.isFinite(Number(worker.dRhFund))
-                        ? Number(worker.dRhFund)
-                        : 6.8;
-
-                hoursD += dRhFund;
-
-                return;
-            }
-
-
-            /* RH – počítáme dny, hodinový fond je stejně jako u D uložen
-               u pracovníka ve Správě pracovníků. */
-
-            if (itemType === "RH") {
-                daysRH += 1;
-
-                const worker = workers.find(
-                    function(currentWorker) {
-                        return currentWorker.id === workerId;
-                    }
-                );
-
-                const dRhFund =
-                    worker && Number.isFinite(Number(worker.dRhFund))
-                        ? Number(worker.dRhFund)
-                        : 6.8;
-
-                hoursRH += dRhFund;
-                return;
-            }
-
-
-            /* NEMOC / SICK LEAVE – libovolný typ sick leave z Legendy. */
-
-            const isSickLeave =
-                item.special === "V" ||
-                itemType.indexOf("SL") === 0 ||
-                String(item.description || "").toLocaleLowerCase("cs").indexOf("sick leave") !== -1;
-
-            if (
-                isSickLeave
-            ) {
-
-                daysV += 1;
-
-
-                let sickHours =
-                    Number(
-                        item.fixedHours
-                    );
-
-
-                if (
-                    !Number.isFinite(
-                        sickHours
-                    )
-                ) {
-
-                    const match =
-                        String(item.type).match(
-                            /SL(\d+(?:[.,]\d+)?)/
-                        );
-
-
-                    if (match) {
-
-                        sickHours =
-                            Number(
-                                match[1].replace(
-                                    ",",
-                                    "."
-                                )
-                            );
-                    }
+            /* SL s časem (typicky SL-19) se dělí přes půlnoc stejně jako
+               původní směna, ale nikdy nevytváří Víkend/Svátek/Noční. */
+            if (parsed) {
+                let sickTotal = Number.isFinite(fpdHours) && String(item.fpd ?? "").trim() !== "" ? fpdHours : NaN;
+                if (!Number.isFinite(sickTotal)) sickTotal = Number(item.fixedHours);
+                if (!Number.isFinite(sickTotal)) {
+                    const match = String(item.type || "").match(/^SL-?(\d+(?:[.,]\d+)?)$/i);
+                    if (match) sickTotal = Number(match[1].replace(",", "."));
                 }
+                if (!Number.isFinite(sickTotal)) sickTotal = parsed.duration / 60;
 
-
-                if (
-                    Number.isFinite(
-                        sickHours
-                    )
-                ) {
-
-                    hoursV +=
-                        sickHours;
+                const hoursPerMinute = sickTotal / parsed.duration;
+                for (let minute = 0; minute < parsed.duration; minute++) {
+                    const absolute = parsed.start + minute;
+                    const dayOffset = Math.floor(absolute / 1440);
+                    const currentDate = new Date(date);
+                    currentDate.setDate(currentDate.getDate() + dayOffset);
+                    if (dateKeys.has(makeDateKey(currentDate))) hoursV += hoursPerMinute;
                 }
-
-
-                return;
+            } else if (effectiveStartsInsidePeriod) {
+                let sickHours = Number(item.fixedHours);
+                if (!Number.isFinite(sickHours) && Number.isFinite(fpdHours)) sickHours = fpdHours;
+                if (!Number.isFinite(sickHours)) {
+                    const match = String(item.type || "").match(/^SL-?(\d+(?:[.,]\d+)?)$/i);
+                    if (match) sickHours = Number(match[1].replace(",", "."));
+                }
+                if (Number.isFinite(sickHours)) hoursV += sickHours;
             }
+            return;
+        }
 
-
-            /* BĚŽNÁ SMĚNA */
-
-            if (!item.time) {
-
-                return;
-            }
-
-
-            const result =
-                calculateShiftForDate(
-                    item.time,
-                    date
-                );
-
-
-            const fpdHours = Number(String(item.fpd ?? "").replace(",", "."));
-            workedHours += Number.isFinite(fpdHours) && String(item.fpd ?? "").trim() !== ""
-                ? fpdHours
-                : roundHours(Number(result.duration) || 0);
-
-
-            nightHours +=
-                result.night;
-
-
-            weekendHours +=
-                result.saturday +
-                result.sunday;
-
-
-            holidayHours +=
-                result.holiday;
-
-
-            if (
-                item.shift !== false
-            ) {
-
+        /* Směna může být platná i bez časového rozsahu (např. SC-6,8 / SC-7,5).
+           V takovém případě se odpracovaná doba bere z FPD. Bez Doby ale nelze
+           určit Víkend/Svátek/Noční, takže tyto časové statistiky zůstávají nulové. */
+        if (!parsed) {
+            if (effectiveStartsInsidePeriod && item.shift !== false) {
+                if (Number.isFinite(fpdHours) && String(item.fpd ?? "").trim() !== "") {
+                    workedHours += fpdHours;
+                }
                 shiftCount += 1;
             }
-
+            return;
         }
-    );
 
+        const totalWorked = Number.isFinite(fpdHours) && String(item.fpd ?? "").trim() !== ""
+            ? fpdHours
+            : parsed.duration / 60;
+        const workedPerMinute = totalWorked / parsed.duration;
 
-    const overtimeHours =
-        calculateOvertime(
-            workerId,
-            dates
-        );
+        for (let minute = 0; minute < parsed.duration; minute++) {
+            const absolute = parsed.start + minute;
+            const dayOffset = Math.floor(absolute / 1440);
+            const minuteOfDay = absolute % 1440;
+            const currentDate = new Date(date);
+            currentDate.setDate(currentDate.getDate() + dayOffset);
+            const currentKey = makeDateKey(currentDate);
+            if (!dateKeys.has(currentKey)) continue;
 
+            workedHours += workedPerMinute;
+
+            if (minuteOfDay >= 1320 || minuteOfDay < 360) nightHours += 1 / 60;
+            const weekday = currentDate.getDay();
+            if (weekday === 0 || weekday === 6) weekendHours += 1 / 60;
+            if (holidays.includes(currentKey)) holidayHours += 1 / 60;
+        }
+
+        /* Směna se počítá pouze do období, ve kterém začala. */
+        if (effectiveStartsInsidePeriod && item.shift !== false) shiftCount += 1;
+    });
+
+    const overtimeHours = calculateOvertime(workerId, dates);
 
     return {
-
-        workedHours:
-            roundHours(workedHours),
-
+        workedHours: roundHours(workedHours),
         shiftCount,
-
-        weekendHours:
-            roundHours(weekendHours),
-
-        nightHours:
-            roundHours(nightHours),
-
-        holidayHours:
-            roundHours(holidayHours),
-
+        weekendHours: roundHours(weekendHours),
+        nightHours: roundHours(nightHours),
+        holidayHours: roundHours(holidayHours),
         daysD,
-
-        hoursD:
-            roundHours(hoursD),
-
+        hoursD: roundHours(hoursD),
         daysRH,
-
-        hoursRH:
-            roundHours(hoursRH),
-
+        hoursRH: roundHours(hoursRH),
         daysV,
-
-        hoursV:
-            roundHours(hoursV),
-
+        hoursV: roundHours(hoursV),
         overtimeHours
-
     };
 }
-
 
 /* =====================================================
    RUČNÍ STATISTIKA
@@ -3643,9 +3746,11 @@ function syncYearStartControls(){
     const y=document.getElementById("appYearDraft"), d=document.getElementById("appStartDateDraft");
     if(y) y.value=YEAR;
     if(d && periodSetup) d.value=periodSetup.startDate || (YEAR+"-01-01");
+    const ys=document.getElementById("displayYearSelect");
+    if(ys){ if(!Array.from(ys.options).some(o=>Number(o.value)===YEAR)){ const o=document.createElement("option");o.value=YEAR;o.textContent=YEAR;ys.appendChild(o); } ys.value=String(YEAR); }
     const t=document.getElementById("homeMainTitle"); if(t) t.textContent="Rozdělovník "+YEAR;
     const login=document.querySelector("#cloudLoginOverlay h2"); if(login) login.textContent="Rozdělovník "+YEAR;
-    document.title="Rozdělovník "+YEAR+" – layout v41";
+    document.title="Rozdělovník "+YEAR+" – multi-year v51";
 }
 function applyYearAndStartDate(){
     const y=document.getElementById("appYearDraft"), d=document.getElementById("appStartDateDraft");
@@ -3657,6 +3762,7 @@ function applyYearAndStartDate(){
     periodSetup.startDate=newDate;
     saveData("rozdelovnik_period_setup",periodSetup);
     recalculateMonthPeriods();
+    if(typeof saveCurrentYearProfileToCloud==="function") saveCurrentYearProfileToCloud().catch(console.error);
     syncYearStartControls();
     renderMonths();
     if(typeof renderVacationPlanningPage==="function" && document.getElementById("vacationPlanningPage") && !document.getElementById("vacationPlanningPage").classList.contains("hidden")) renderVacationPlanningPage();
@@ -3773,6 +3879,16 @@ async function saveManualScheduleChanges() {
     const btn = document.getElementById("saveManualScheduleBtn");
     if (btn) { btn.disabled = true; btn.textContent = "Ukládám…"; }
     try {
+        /* v53: odstranění race condition. Starší odložený/rozběhnutý full-save mohl
+           doběhnout až PO DELETE a znovu upsertovat 19/SL-19. Nejdřív proto
+           zastavíme timer, necháme doběhnout případný save a po dobu dávky zamkneme
+           všechny obecné upserty rozdělovníku. */
+        clearTimeout(cloudScheduleSaveTimer);
+        cloudScheduleSaveTimer = null;
+        while (cloudScheduleSaving) { await new Promise(function(resolve){ setTimeout(resolve, 25); }); }
+        cloudScheduleSavePending = false;
+        cloudScheduleManualLock = true;
+
         if (cloudSession && cloudScheduleReady) {
             const upserts = [];
             const deletes = [];
@@ -3802,13 +3918,63 @@ async function saveManualScheduleChanges() {
                 if (!r.ok) throw new Error("Zápis změn: " + await r.text());
             }
             for (const parts of deletes) {
-                const r = await cloudFetch("monthly_schedule?plan_date=eq." + encodeURIComponent(parts.date) + "&worker_id=eq." + encodeURIComponent(parts.workerId), {
-                    method:"DELETE", headers:{"Prefer":"return=minimal"}
-                });
-                if (!r.ok) throw new Error("Mazání změny: " + await r.text());
+                /* v52: nejdřív si načteme skutečný řádek z DB a mažeme jej podle PK id.
+                   Tím se vyhneme situaci, kdy filtrovací DELETE vrátí 2xx, ale starý
+                   zdrojový záznam 19 / SL-19 zůstane v monthly_schedule a po reloadu
+                   znovu vytvoří odvozený přenos přes půlnoc. */
+                const lookupUrl = "monthly_schedule?select=id,plan_date,worker_id,assignment&plan_date=eq." + encodeURIComponent(parts.date) + "&worker_id=eq." + encodeURIComponent(parts.workerId);
+                const lookup = await cloudFetch(lookupUrl, {method:"GET"});
+                if (!lookup.ok) throw new Error("Načtení mazané směny: " + await lookup.text());
+                const foundRows = await lookup.json();
+
+                for (const dbRow of foundRows) {
+                    const deleteById = "monthly_schedule?id=eq." + encodeURIComponent(dbRow.id);
+                    const r = await cloudFetch(deleteById, {
+                        method:"DELETE", headers:{"Prefer":"return=representation"}
+                    });
+                    if (!r.ok) throw new Error("Mazání změny: " + await r.text());
+                    const deletedRows = await r.json();
+                    if (!deletedRows.length) throw new Error("Supabase nepotvrdil smazání směny " + (dbRow.assignment || "") + " pro " + parts.date + ".");
+                }
+
+                const verify = await cloudFetch(lookupUrl, {method:"GET"});
+                if (!verify.ok) throw new Error("Kontrola smazání: " + await verify.text());
+                const remaining = await verify.json();
+                if (remaining.length) throw new Error("Směna pro " + parts.date + " zůstala po smazání v databázi.");
+
+                /* v55: stejný záznam nesmí zůstat ani ve staré lokální cache. */
+                delete schedule[parts.date + "_" + parts.workerId];
             }
         }
-        saveData("rozdelovnik_schedule", schedule);
+        /* v54: druhá kontrola po krátké prodlevě zachytí i opožděný zápis,
+           který by se pokusil smazanou směnu vrátit. */
+        if (cloudSession && cloudScheduleReady) {
+            const deletedAgain = changes.filter(function(entry){ return !(entry[1].current || ""); });
+            if (deletedAgain.length) {
+                await new Promise(function(resolve){ setTimeout(resolve, 350); });
+                for (const entry of deletedAgain) {
+                    const parts = parseWorkerKey(entry[0]);
+                    if (!parts) continue;
+                    const checkUrl = "monthly_schedule?select=id,assignment&plan_date=eq." + encodeURIComponent(parts.date) + "&worker_id=eq." + encodeURIComponent(parts.workerId);
+                    const check = await cloudFetch(checkUrl, {method:"GET"});
+                    if (!check.ok) throw new Error("Kontrola smazání po uložení: " + await check.text());
+                    const rows = await check.json();
+                    if (rows.length) {
+                        /* Pokud by nějaký starší klientský zápis přesto doběhl,
+                           definitivně odstraníme řádek ještě jednou. */
+                        for (const row of rows) {
+                            const del = await cloudFetch("monthly_schedule?id=eq." + encodeURIComponent(row.id), {method:"DELETE", headers:{"Prefer":"return=minimal"}});
+                            if (!del.ok) throw new Error("Opakované smazání změny: " + await del.text());
+                        }
+                    }
+                }
+            }
+        }
+
+        /* Uložení lokální kopie bez queueScheduleCloudSave(). Dávkové změny byly
+           právě explicitně zapsány/smazány výše; následný obecný upsert by mohl
+           závodit s DELETE a obnovit starý řádek. */
+        localStorage.setItem("rozdelovnik_schedule", JSON.stringify(schedule));
         manualScheduleChanges = {};
         updateManualScheduleButtons();
         setCloudStatus(cloudSession ? "Online • uloženo" : "Uloženo lokálně");
@@ -3817,6 +3983,10 @@ async function saveManualScheduleChanges() {
         setCloudStatus("Chyba ukládání měsíčního rozdělovníku");
         alert("Změny se nepodařilo uložit. Zůstávají připravené k opakovanému uložení.");
     } finally {
+        cloudScheduleManualLock = false;
+        /* Pending zde záměrně zahodíme: vznikl pouze během zamčeného ručního
+           uložení a schedule už odpovídá právě potvrzenému stavu. */
+        cloudScheduleSavePending = false;
         if (btn) btn.textContent = "Uložit změny";
         updateManualScheduleButtons();
     }
@@ -3833,6 +4003,36 @@ function discardManualScheduleChanges() {
     manualScheduleChanges = {};
     updateManualScheduleButtons();
     if (currentMonth !== null) renderTable();
+}
+
+function updateMonthNavigation() {
+    const select = document.getElementById("monthNavigationSelect");
+    if (select) {
+        if (!select.options.length) {
+            monthNames.forEach(function(name, index) {
+                const option = document.createElement("option");
+                option.value = index;
+                option.textContent = name + " " + YEAR;
+                select.appendChild(option);
+            });
+        } else {
+            Array.from(select.options).forEach(function(option, index) {
+                option.textContent = monthNames[index] + " " + YEAR;
+            });
+        }
+        select.value = String(currentMonth);
+    }
+    const prev = document.getElementById("prevMonthButton");
+    const next = document.getElementById("nextMonthButton");
+    if (prev) prev.disabled = currentMonth === null || currentMonth <= 0;
+    if (next) next.disabled = currentMonth === null || currentMonth >= 11;
+}
+
+function changeMonth(direction) {
+    if (currentMonth === null) return;
+    const target = currentMonth + direction;
+    if (target < 0 || target > 11) return;
+    showMonth(target);
 }
 
 function showMonth(month) {
@@ -3865,6 +4065,7 @@ function showMonth(month) {
         " " +
         YEAR;
 
+    updateMonthNavigation();
 
     renderTable();
     updateManualScheduleButtons();
@@ -4043,6 +4244,21 @@ function renderWorkersManagement() {
                     "rh"
                 )
             );
+
+            /* NÁROK NA RH */
+            const rhEligibleCell = document.createElement("td");
+            rhEligibleCell.style.textAlign = "center";
+            const rhEligibleInput = document.createElement("input");
+            rhEligibleInput.type = "checkbox";
+            rhEligibleInput.checked = isWorkerRhEligible(worker);
+            rhEligibleInput.title = rhEligibleInput.checked ? "Pracovník má nárok na RH" : "Pracovník nemá nárok na RH – RH věžáky se dopočítají průměrem";
+            rhEligibleInput.addEventListener("change", function(){
+                setWorkerRhEligible(worker, rhEligibleInput.checked);
+                renderWorkersManagement();
+                if (typeof renderVacationPlanningControl === "function") renderVacationPlanningControl();
+            });
+            rhEligibleCell.appendChild(rhEligibleInput);
+            row.appendChild(rhEligibleCell);
 
 
             /* ANG */
@@ -4819,6 +5035,21 @@ function renderTable() {
                         }
                     );
 
+                    /* Na úplně prvním dni ročního rozdělovníku lze zadat
+                       příchozí část směny, která začala předchozí den.
+                       Nabízíme jen směny, které skutečně přecházejí přes půlnoc. */
+                    if (dates.length && makeDateKey(date) === makeDateKey(dates[0]) &&
+                        currentMonth === 0 && makeDateKey(date) === makeDateKey(getCurrentDates()[0])) {
+                        legend.forEach(function(item) {
+                            const parsedCarry = item.time ? parseTimeRange(item.time) : null;
+                            if (!parsedCarry || parsedCarry.start + parsedCarry.duration <= 1440) return;
+                            const option = document.createElement("option");
+                            option.value = "__carryin__:" + item.id;
+                            option.textContent = "↳ " + item.type + " (přenos)";
+                            select.appendChild(option);
+                        });
+                    }
+
 
                     const key =
                         makeWorkerKey(
@@ -5023,9 +5254,12 @@ function renderTable() {
 
 function updateTitle(select) {
 
+    const rawValue = String(select.value || "");
+    const isCarryIn = rawValue.indexOf("__carryin__:") === 0;
+    const legendValue = isCarryIn ? rawValue.slice("__carryin__:".length) : rawValue;
     const item =
         findLegendItem(
-            select.value
+            legendValue
         );
 
 
@@ -5063,8 +5297,11 @@ function updateTitle(select) {
 
     if (!item.time) {
 
+        const fpdText = String(item.fpd ?? "").trim();
         select.title =
-            item.description || "";
+            (isCarryIn ? "Přenos z předchozího dne\n" : "") +
+            "Popis: " + (item.description || "—") +
+            (fpdText ? "\nFPD: " + fpdText + " h" : "");
 
         return;
     }
@@ -5082,12 +5319,16 @@ function updateTitle(select) {
 
 
     select.title =
-        "Typ: " +
-        item.type +
+        (isCarryIn ? "Přenos z předchozího dne\n" : "") +
+        "Popis: " +
+        (item.description || "—") +
         "\n" +
         "Doba: " +
         item.time +
         "\n" +
+        "FPD: " +
+        (String(item.fpd ?? "").trim() || "—") +
+        " h\n" +
         "Noční: " +
         formatHours(
             parsed.night
@@ -5215,8 +5456,7 @@ function renderStatistics(
                 roundHours(
                     workedIncludingSick +
                     stats.hoursD +
-                    stats.hoursRH +
-                    stats.overtimeHours
+                    stats.hoursRH
                 );
 
 
@@ -5368,7 +5608,7 @@ function renderStatistics(
 
 
     note.textContent =
-        "Přesčas se zadává po jednotlivých dnech v řádku Přesčas. D a RH = počet hodin podle fondu D/RH pracovníka ze Správy pracovníků. DSv nečerpá den D ani hodiny D. RH se počítá do Vybráno dní RH a Hodin RH. Libovolný sick leave se počítá do Vybráno dní V. VV se zadává ručně. Rozdíl = VV − Celkem hodin.";
+        "Přesčas se zadává po jednotlivých dnech v řádku Přesčas a započítává se pouze do sloupce Přesčas (ne do Celkem hodin ani jiných statistik). D a RH = počet hodin podle fondu D/RH pracovníka ze Správy pracovníků. DSv nečerpá den D, ale započítává se do Hodin D podle fondu D/RH pracovníka. RH se počítá do Vybráno dní RH a Hodin RH. Libovolný sick leave se počítá do Vybráno dní V. VV se zadává ručně. Rozdíl = VV − Celkem hodin.";
 
 
     container.appendChild(
@@ -5415,74 +5655,46 @@ function addManualVVInput(
     manual
 ) {
 
-    const cell =
-        document.createElement(
-            "td"
-        );
+    const cell = document.createElement("td");
+    const input = document.createElement("input");
 
+    /* VV je ručně zadávaný fond hodin. Textové pole bez spinnerů umožní
+       napsat např. 135 plynule, aniž by se tabulka překreslila po první číslici. */
+    input.type = "text";
+    input.inputMode = "decimal";
+    input.className = "stat-manual";
+    input.value = (manual.vv === undefined || manual.vv === null || manual.vv === "") ? "" : String(manual.vv).replace(".", ",");
 
-    const input =
-        document.createElement(
-            "input"
-        );
-
-
-    input.type =
-        "number";
-
-
-    input.min =
-        "0";
-
-
-    input.step =
-        "0.1";
-
-
-    input.className =
-        "stat-manual";
-
-
-    input.value =
-        manual.vv || "";
-
-
-    input.addEventListener(
-        "input",
-        function() {
-
-            const value =
-                Number(
-                    input.value
-                ) || 0;
-
-
-            manual.vv =
-                value;
-
-
-            saveData(
-                "rozdelovnik_manual_statistics",
-                manualStatistics
-            );
-
-
-            renderStatistics(
-                getCurrentDates()
-            );
-
+    function commitVV() {
+        const raw = String(input.value || "").trim().replace(",", ".");
+        const value = raw === "" ? 0 : Number(raw);
+        if (!Number.isFinite(value)) {
+            input.value = manual.vv ? String(manual.vv).replace(".", ",") : "";
+            return;
         }
-    );
+        manual.vv = value;
+        // VV ve statistice je roční údaj. Uložíme jej do roční lokální cache
+        // i do ročního profilu v Supabase, aby přežil reload i práci z jiného PC.
+        saveData("rozdelovnik_manual_statistics", manualStatistics);
+        saveData(localYearKey("rozdelovnik_manual_statistics", YEAR), manualStatistics);
+        if (cloudSession) {
+            saveCurrentYearProfileToCloud()
+                .then(function(){ setCloudStatus("Online • uloženo"); })
+                .catch(function(e){ console.error(e); setCloudStatus("Chyba ukládání VV"); });
+        }
+        renderStatistics(getCurrentDates());
+    }
 
+    input.addEventListener("change", commitVV);
+    input.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            input.blur();
+        }
+    });
 
-    cell.appendChild(
-        input
-    );
-
-
-    row.appendChild(
-        cell
-    );
+    cell.appendChild(input);
+    row.appendChild(cell);
 }
 
 
@@ -5711,7 +5923,7 @@ function renderLegend(
     table.appendChild(addRow); container.appendChild(table);
 
     const note=document.createElement("div"); note.className="legend-note";
-    note.textContent="FPD je ručně nastavený počet započítaných hodin směny. Hodiny noční se u běžných směn počítají automaticky podle času směny. Víkend a svátek se ve statistikách počítají podle konkrétního data směny.";
+    note.textContent="FPD je ručně nastavený počet započítaných hodin směny. Hodiny noční se u běžných směn počítají automaticky podle času směny. Víkend a svátek se ve statistikách počítají podle konkrétního data směny. Směna přes půlnoc se mezi období rozdělí automaticky; sick leave (např. SL-19) se rozdělí stejně, ale nepočítá Víkend, Svátek ani Noční.";
     container.appendChild(note);
 }
 
@@ -5768,7 +5980,7 @@ function createInputCell(
 
                 const match =
                     type.match(
-                        /^SL(\d+(?:[.,]\d+)?)$/i
+                        /^SL-?(\d+(?:[.,]\d+)?)$/i
                     );
 
 
@@ -5946,7 +6158,7 @@ let vacationWeekNote = loadData("rozdelovnik_vacation_week_note", {});
 const VACATION_ROWS = 6;
 
 function defaultVacationControl() {
-    return { planningYear:YEAR, cutoffDate:"", round1Start:"", currentRound:0, round1Order:[], roundSnapshots:{}, prioritySnapshot:null, baseTowerByWorker:{} };
+    return { planningYear:YEAR, cutoffDate:"", round1Start:"", currentRound:0, round1Order:[], roundSnapshots:{}, prioritySnapshot:null, baseTowerByWorker:{}, rhEligibilityByWorker:{} };
 }
 function normalizeVacationControl(value) {
     const v=Object.assign(defaultVacationControl(), value||{});
@@ -5956,9 +6168,26 @@ function normalizeVacationControl(value) {
     v.roundSnapshots=(v.roundSnapshots&&typeof v.roundSnapshots==='object')?v.roundSnapshots:{};
     v.prioritySnapshot=(v.prioritySnapshot&&typeof v.prioritySnapshot==='object')?v.prioritySnapshot:null;
     v.baseTowerByWorker=(v.baseTowerByWorker&&typeof v.baseTowerByWorker==='object')?v.baseTowerByWorker:{};
+    v.rhEligibilityByWorker=(v.rhEligibilityByWorker&&typeof v.rhEligibilityByWorker==='object')?v.rhEligibilityByWorker:{};
     return v;
 }
 let vacationControl = normalizeVacationControl(loadData("rozdelovnik_vacation_control", defaultVacationControl()));
+
+function isWorkerRhEligible(worker){
+    if(!worker) return true;
+    const id=String(worker.id);
+    if(Object.prototype.hasOwnProperty.call(vacationControl.rhEligibilityByWorker,id))
+        return vacationControl.rhEligibilityByWorker[id] !== false;
+    // Jednorázová migrace současného stavu: Fajkus zatím RH nemá.
+    return String(worker.name||"").trim().toLocaleLowerCase("cs") !== "fajkus";
+}
+function setWorkerRhEligible(worker, eligible){
+    if(!worker) return;
+    vacationControl.rhEligibilityByWorker[String(worker.id)] = !!eligible;
+    saveData(localYearKey("rozdelovnik_vacation_control",YEAR), vacationControl);
+    if(typeof queueVacationControlCloudSave === "function") queueVacationControlCloudSave();
+}
+
 
 // Lokální prototyp 0. kola – zatím pouze pro rychlé ladění UI, bez Supabase.
 let vacationRound0Requests = loadData("rozdelovnik_vacation_round0_requests_layout_test", {});
@@ -6262,28 +6491,24 @@ function vacationTowerTotals(ignoreFrozenFajkusRh){
             }
         });
     }
-    /* Fajkus nemá vlastní nárok RH. Pro férové pořadí dostává průměr RH věžáků
-       ostatních pracovníků s nastaveným RH kódem. Po uzavření 1. kola se použije
-       zmrazená hodnota ze snapshotu 1. kola. */
-    const fajkus=workers.find(function(w){return String(w.name||"").trim().toLocaleLowerCase("cs")==="fajkus";});
-    if(fajkus){
-        const fid=String(fajkus.id);
+    /* Pracovníci bez nároku na RH dostávají pro férové pořadí průměr RH věžáků
+       pracovníků s nárokem. Po uzavření 1. kola se použije zmrazená hodnota
+       ze snapshotu 1. kola. */
+    const eligibleRhWorkers=workers.filter(function(w){ return isWorkerRhEligible(w); });
+    const eligibleRhSum=eligibleRhWorkers.reduce(function(acc,w){return acc+Number((out[String(w.id)]||{}).RH||0);},0);
+    const fairRhAverage=eligibleRhWorkers.length?Math.round(eligibleRhSum/eligibleRhWorkers.length):0;
+    workers.filter(function(w){return !isWorkerRhEligible(w);}).forEach(function(worker){
+        const wid=String(worker.id);
         let fairRh=null;
         const snap1=!ignoreFrozenFajkusRh && vacationControl.roundSnapshots && vacationControl.roundSnapshots["1"];
         if(snap1 && Array.isArray(snap1.rows)){
-            const frozen=snap1.rows.find(function(r){return String(r.workerId)===fid;});
+            const frozen=snap1.rows.find(function(r){return String(r.workerId)===wid;});
             if(frozen && Number.isFinite(Number(frozen.RH))) fairRh=Number(frozen.RH);
         }
-        if(fairRh==null){
-            const eligible=workers.filter(function(w){
-                return String(w.id)!==fid && String(w.rh||"").trim()!=="";
-            });
-            const sum=eligible.reduce(function(acc,w){return acc+Number((out[String(w.id)]||{}).RH||0);},0);
-            fairRh=eligible.length?Math.round(sum/eligible.length):0;
-        }
-        if(!out[fid]) out[fid]={D:0,RH:0,total:0};
-        out[fid].RH=fairRh;
-    }
+        if(fairRh==null) fairRh=fairRhAverage;
+        if(!out[wid]) out[wid]={D:0,RH:0,total:0};
+        out[wid].RH=fairRh;
+    });
     Object.keys(out).forEach(function(id){out[id].total=out[id].D+out[id].RH;});
     return out;
 }
@@ -6560,6 +6785,7 @@ function getVacationCodeEntries() {
     const entries = [];
     workers.forEach(function(worker) {
         [[worker.d,"D"],[worker.rh,"RH"],[worker.ang,"Ang"],[worker.dHoliday,"DSv"]].forEach(function(pair) {
+            if(pair[1]==="RH" && !isWorkerRhEligible(worker)) return;
             const code = String(pair[0] || "").trim();
             if (code) entries.push({code:code, worker:worker, assignmentType:pair[1]});
         });
@@ -6851,6 +7077,96 @@ async function saveVacationManualChanges() {
     }
 }
 
+
+async function resyncVacationYearToSchedule() {
+    if(!isVacationAdmin()) {
+        alert("Synchronizaci může spustit pouze administrátor.");
+        return;
+    }
+    if(Object.keys(vacationManualChanges||{}).length) {
+        alert("Nejdříve uložte nebo zahoďte rozpracované změny v Plánování dovolených.");
+        return;
+    }
+    if(!cloudSession) {
+        alert("Pro synchronizaci je nutné být přihlášen online.");
+        return;
+    }
+    if(!confirm("Doplnit chybějící D/RH/Ang/D svátek z Plánování dovolených pro rok "+YEAR+" do měsíčních rozdělovníků?\n\nExistující záznamy směn nebudou přepsány.")) return;
+
+    const btn=document.getElementById("resyncVacationYearBtn");
+    const oldText=btn?btn.textContent:"Synchronizovat rok";
+    if(btn){btn.disabled=true;btn.textContent="Synchronizuji…";}
+    try {
+        setCloudStatus("Synchronizuji dovolené "+YEAR+"…");
+        const entries=getVacationCodeEntries();
+        const desired=[];
+        Object.keys(vacationPlan||{}).forEach(function(key){
+            const code=String(vacationPlan[key]||"").trim();
+            if(!code) return;
+            const parts=key.split("_");
+            if(parts.length<3) return;
+            const dateKey=parts.slice(2).join("_");
+            const d=parseDateKey(dateKey);
+            if(!d) return;
+            const month=findVacationMonthForDate(d);
+            if(month===null) return; // pouze právě zobrazený plánovací rok
+            const entry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===code.toLocaleLowerCase("cs");});
+            if(!entry || !entry.worker || !entry.worker.id) return;
+            const legendId=findLegendIdByType(entry.assignmentType);
+            if(!legendId) return;
+            desired.push({
+                plan_date:dateKey,
+                worker_id:String(entry.worker.id),
+                assignment:String(entry.assignmentType),
+                legendId:legendId
+            });
+        });
+
+        if(!desired.length) {
+            alert("V Plánování dovolených pro rok "+YEAR+" nejsou žádné záznamy k synchronizaci.");
+            setCloudStatus("Online • beze změny");
+            return;
+        }
+
+        // Načteme existující rozdělovník. Synchronizace je záměrně nedestruktivní:
+        // cokoli už pro pracovníka a datum existuje, ponecháme beze změny.
+        const r=await cloudFetch("monthly_schedule?select=plan_date,worker_id,assignment,source",{method:"GET"});
+        if(!r.ok) throw new Error("Načtení měsíčního rozdělovníku: "+await r.text());
+        const existingRows=await r.json();
+        const existing=new Set(existingRows.map(function(x){return String(x.plan_date)+"_"+String(x.worker_id);}));
+        const missing=desired.filter(function(x){return !existing.has(x.plan_date+"_"+x.worker_id);});
+
+        if(missing.length) {
+            const now=new Date().toISOString();
+            const rows=missing.map(function(x){return {
+                plan_date:x.plan_date,
+                worker_id:x.worker_id,
+                assignment:x.assignment,
+                source:"vacation",
+                updated_at:now
+            };});
+            const wr=await cloudFetch("monthly_schedule?on_conflict=plan_date,worker_id",{
+                method:"POST",
+                headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+                body:JSON.stringify(rows)
+            });
+            if(!wr.ok) throw new Error("Doplnění měsíčního rozdělovníku: "+await wr.text());
+            missing.forEach(function(x){schedule[x.plan_date+"_"+x.worker_id]=x.legendId;});
+            saveData("rozdelovnik_schedule",schedule);
+        }
+
+        if(currentMonth!==null) renderTable();
+        setCloudStatus("Online • synchronizováno");
+        alert("Synchronizace roku "+YEAR+" dokončena.\n\nDoplněno: "+missing.length+" záznamů.\nPonecháno beze změny: "+(desired.length-missing.length)+" záznamů.");
+    } catch(err) {
+        console.error("Synchronizace dovolených do rozdělovníku:",err);
+        setCloudStatus("Chyba synchronizace");
+        alert("Synchronizace se nepodařila: "+(err && err.message ? err.message : err));
+    } finally {
+        if(btn){btn.disabled=false;btn.textContent=oldText;}
+    }
+}
+
 function discardVacationManualChanges() {
     const changes=Object.values(vacationManualChanges);
     if(!changes.length) return;
@@ -6866,6 +7182,8 @@ function discardVacationManualChanges() {
 
 function showVacationPage() {
     currentMonth=null;
+    const syncBtn=document.getElementById("resyncVacationYearBtn");
+    if(syncBtn){ syncBtn.style.display=isVacationAdmin()?"":"none"; syncBtn.textContent="Synchronizovat "+YEAR; }
     document.getElementById("legendPage").classList.add("hidden");
     document.getElementById("homePage").classList.add("hidden");
     document.getElementById("workersPage").classList.add("hidden");
@@ -7108,6 +7426,7 @@ document.addEventListener(
 document.addEventListener("DOMContentLoaded",function(){
     syncYearStartControls();
     const b=document.getElementById("applyYearStartBtn");
+    const dys=document.getElementById("displayYearSelect"); if(dys) dys.addEventListener("change",function(){ switchDisplayedYear(this.value); });
     if(b) b.addEventListener("click",applyYearAndStartDate);
 });
 </script>
