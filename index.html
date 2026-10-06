@@ -1099,7 +1099,7 @@ h1 {
 
     <div class="toolbar sticky-page-header toolbar-centered">
 
-        <h2>Správa pracovníků</h2>
+        <h2 id="workersPageTitle">Správa pracovníků</h2>
 
         <div class="toolbar-buttons">
             <button
@@ -1123,6 +1123,11 @@ h1 {
             Přesun pracovníka zachová všechny jeho směny, přesčasy i statistické údaje.
         </p>
 
+
+        <div id="workersYearCopyPanel" style="margin:12px 0 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <button type="button" class="button button-green" id="copyWorkersNextYearBtn" onclick="copyWorkersToNextYear()">Kopírovat pracovníky do dalšího roku</button>
+            <span id="copyWorkersNextYearInfo" style="font-size:13px; opacity:.8;"></span>
+        </div>
 
         <div class="workers-table-wrapper">
 
@@ -1195,7 +1200,7 @@ h1 {
             <button type="button" class="button vacation-manual-save" id="saveVacationManualBtn" onclick="saveVacationManualChanges()" disabled>Uložit změny</button>
             <button type="button" class="button vacation-manual-discard" id="discardVacationManualBtn" onclick="discardVacationManualChanges()" disabled>Zahodit změny</button>
             <button type="button" class="button" id="resyncVacationYearBtn" onclick="resyncVacationYearToSchedule()" title="Doplní chybějící D/RH/Ang/D svátek z Plánování dovolených do měsíčních rozdělovníků. Existující směny nepřepisuje.">Synchronizovat rok</button>
-            <button type="button" class="button" onclick="showHome()">← Zpět</button>
+<button type="button" class="button" onclick="showHome()">← Zpět</button>
         </div>
     </div>
     <div class="vacation-page">
@@ -1358,6 +1363,9 @@ let cloudScheduleManualLock = false;
 let cloudScheduleSaveTimer = null;
 let cloudVacationControlReady = false;
 let cloudVacationControlSaveTimer = null;
+/* v61: chyba během ručního Uložit nesmí být přepsána pozdějším zeleným stavem. */
+let cloudManualSaveActive = false;
+let cloudManualSaveHadError = false;
 
 function cloudHeaders(extra) {
     const h = Object.assign({
@@ -1377,6 +1385,7 @@ function setCloudStatus(text, forceVisual) {
        Oranžový stav se zobrazí pouze při ručním stisku tlačítka Uložit.
        Skutečná chyba se naopak zobrazí vždy. */
     const isError = t.includes("chyba");
+    if (cloudManualSaveActive && isError) cloudManualSaveHadError = true;
     const isTransient = t.includes("uklád") || t.includes("načít");
     if (isTransient && !forceVisual) return;
 
@@ -1393,11 +1402,13 @@ async function manualCloudSave() {
     if (!cloudSession) { setCloudStatus("Chyba • nepřihlášeno"); return; }
     const btn = document.getElementById("cloudManualSaveBtn");
     if (btn) btn.disabled = true;
+    cloudManualSaveActive = true;
+    cloudManualSaveHadError = false;
     setCloudStatus("Ukládám…", true);
     try {
-        /* v56: horní tlačítko Uložit musí nejdřív potvrdit i rozpracované
-           ruční změny v právě otevřeném měsíci. Dříve umělo jen upsertovat
-           neprázdné buňky, takže vymazaná směna mohla v DB zůstat. */
+        /* v61: měsíční rozdělovník se ukládá pouze explicitními změnami buněk.
+           NEDĚLÁME už destruktivní full-sync celé tabulky monthly_schedule.
+           Ten byl navíc zatížen limitem 1000 řádků Supabase/PostgREST. */
         if (Object.keys(manualScheduleChanges || {}).length) {
             await saveManualScheduleChanges();
         }
@@ -1406,13 +1417,16 @@ async function manualCloudSave() {
         await savePeriodsToCloudNow(true);
         await saveVacationWeekSettingsToCloudNow(true);
         await saveVacationPlanToCloudNow(true);
-        await saveScheduleToCloudNow(true);
-        await saveVacationControlToCloudNow(true); await saveCurrentYearProfileToCloud();
+        await saveVacationControlToCloudNow(true);
+        await saveCurrentYearProfileToCloud();
+        if (cloudManualSaveHadError) throw new Error("Některá část ukládání selhala.");
         setCloudStatus("Online • uloženo", true);
     } catch (e) {
         console.error(e);
-        setCloudStatus("Chyba ukládání", true);
+        cloudManualSaveHadError = true;
+        setCloudStatus("Chyba ukládání • data nejsou kompletně uložena", true);
     } finally {
+        cloudManualSaveActive = false;
         if (btn) btn.disabled = false;
     }
 }
@@ -1618,9 +1632,20 @@ async function saveWorkersToCloudNow() {
 }
 
 function queueWorkersCloudSave() {
-    if (!cloudWorkersReady || !cloudSession) return;
+    /* Od v59 jsou pracovníci součástí ročního profilu. Globální tabulka workers
+       zůstává pouze jako zdroj pro migraci starších dat; změny jednoho roku ji
+       už nesmí přepisovat a ovlivnit ostatní roky. */
+    if (!cloudSession) return;
     clearTimeout(cloudWorkersSaveTimer);
-    cloudWorkersSaveTimer = setTimeout(saveWorkersToCloudNow, 250);
+    cloudWorkersSaveTimer = setTimeout(async function(){
+        try {
+            await saveCurrentYearProfileToCloud();
+            setCloudStatus("Online • pracovníci " + YEAR + " uloženi");
+        } catch(e) {
+            console.error(e);
+            setCloudStatus("Chyba ukládání pracovníků");
+        }
+    }, 250);
 }
 
 
@@ -1629,17 +1654,34 @@ const YEAR_PROFILE_PREFIX = "year_profile_";
 function yearProfileKey(year){ return YEAR_PROFILE_PREFIX + String(year); }
 function localYearKey(base, year){ return base + "_" + String(year); }
 function defaultPeriodSetupForYear(year){ return {startDate:String(year)+"-01-01",weeks:Array(12).fill(4)}; }
+function cloneWorkersForYear(items){
+    return (Array.isArray(items) ? items : []).map(function(w, i){
+        return normalizeWorker(JSON.parse(JSON.stringify(w)), i);
+    });
+}
 function makeYearProfile(){
     return {
         year:YEAR,
+        /* Seznam pracovníků je historický údaj konkrétního roku. Díky tomu
+           odchod/příchod pracovníka ani změna fondu v novém roce nemění minulost. */
+        workers: cloneWorkersForYear(workers),
         periodSetup: periodSetup || defaultPeriodSetupForYear(YEAR),
         vacationVV: vacationVV || {}, vacationKoef: vacationKoef || {}, vacationWeekNote: vacationWeekNote || {},
         vacationControl: vacationControl || defaultVacationControl(),
-        manualStatistics: manualStatistics || {}
+        manualStatistics: manualStatistics || {},
+        overtimeData: overtimeData || {}
     };
 }
 function applyYearProfile(profile){
     profile=profile||{};
+    /* Starší roční profily pracovníky neobsahovaly. Při prvním otevření takového
+       roku zachováme právě načtený seznam jako migrační základ a profil se při
+       dalším uložení doplní. */
+    if(Array.isArray(profile.workers) && profile.workers.length){
+        workers=cloneWorkersForYear(profile.workers);
+    }
+    localStorage.setItem(localYearKey("rozdelovnik_workers",YEAR),JSON.stringify(workers));
+    localStorage.setItem("rozdelovnik_workers",JSON.stringify(workers));
     periodSetup=profile.periodSetup || defaultPeriodSetupForYear(YEAR);
     vacationVV=profile.vacationVV || {};
     vacationKoef=profile.vacationKoef || {};
@@ -1647,6 +1689,9 @@ function applyYearProfile(profile){
     vacationControl=normalizeVacationControl(profile.vacationControl || defaultVacationControl());
     vacationControl.planningYear=YEAR;
     manualStatistics=profile.manualStatistics || {};
+    overtimeData=profile.overtimeData || loadData(localYearKey("rozdelovnik_overtime",YEAR), {});
+    saveData(localYearKey("rozdelovnik_overtime",YEAR),overtimeData);
+    saveData("rozdelovnik_overtime",overtimeData);
     saveData(localYearKey("rozdelovnik_period_setup",YEAR),periodSetup);
     saveData(localYearKey("rozdelovnik_vacation_vv",YEAR),vacationVV);
     saveData(localYearKey("rozdelovnik_vacation_koef",YEAR),vacationKoef);
@@ -1655,6 +1700,39 @@ function applyYearProfile(profile){
     saveData(localYearKey("rozdelovnik_manual_statistics",YEAR),manualStatistics);
     recalculateMonthPeriods();
 }
+async function copyWorkersToNextYear(){
+    if(!isVacationAdmin()) return;
+    const targetYear=YEAR+1;
+    const sourceYear=YEAR;
+    const sourceWorkers=cloneWorkersForYear(workers);
+    if(!sourceWorkers.length){ alert("V roce "+sourceYear+" nejsou žádní pracovníci ke kopírování."); return; }
+    if(!confirm("Zkopírovat "+sourceWorkers.length+" pracovníků z roku "+sourceYear+" do roku "+targetYear+"?\n\nV cílovém roce se nahradí pouze seznam pracovníků. Ostatní data roku "+targetYear+" zůstanou beze změny.")) return;
+    try{
+        setCloudStatus("Kopíruji pracovníky…");
+        let targetProfile=null;
+        if(cloudSession){
+            const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(yearProfileKey(targetYear))+"&select=setting_value",{method:"GET"});
+            if(!r.ok) throw new Error("Načtení cílového roku: "+await r.text());
+            const rows=await r.json();
+            if(rows.length && rows[0].setting_value) targetProfile=rows[0].setting_value;
+        }
+        if(!targetProfile){
+            targetProfile={year:targetYear,periodSetup:defaultPeriodSetupForYear(targetYear),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:targetYear}),manualStatistics:{},overtimeData:{}};
+        }
+        targetProfile.year=targetYear;
+        targetProfile.workers=sourceWorkers;
+        localStorage.setItem(localYearKey("rozdelovnik_workers",targetYear),JSON.stringify(sourceWorkers));
+        if(cloudSession){
+            const r=await cloudFetch("app_settings?on_conflict=setting_key",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({setting_key:yearProfileKey(targetYear),setting_value:targetProfile,updated_at:new Date().toISOString()})});
+            if(!r.ok) throw new Error("Uložení pracovníků do roku "+targetYear+": "+await r.text());
+        }
+        setCloudStatus("Online • pracovníci "+targetYear+" zkopírováni");
+        alert("Hotovo: "+sourceWorkers.length+" pracovníků z roku "+sourceYear+" bylo zkopírováno do roku "+targetYear+".");
+    }catch(e){
+        console.error(e); setCloudStatus("Chyba kopírování pracovníků"); alert("Kopírování se nepodařilo: "+(e&&e.message?e.message:e));
+    }
+}
+
 async function saveCurrentYearProfileToCloud(){
     if(!cloudSession) return;
     const profile=makeYearProfile();
@@ -1673,14 +1751,23 @@ async function switchDisplayedYear(newYear){
     newYear=Math.max(2000,Math.min(2100,Number(newYear)||YEAR));
     if(newYear===YEAR) return;
     try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
+    /* Kopie pracovníků slouží jako výchozí stav pouze při založení roku,
+       který ještě vlastní profil nemá. Jakmile profil existuje, načte se jeho
+       historický seznam a změny jiných let jej neovlivní. */
+    const workersFromPreviousView=cloneWorkersForYear(workers);
     YEAR=newYear; saveData("rozdelovnik_app_year",YEAR); refreshHolidaySet();
     let loaded=false;
     try{ loaded=await loadYearProfileFromCloud(YEAR); }catch(e){ console.error(e); }
     if(!loaded){
-        applyYearProfile({year:YEAR,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{}});
+        applyYearProfile({year:YEAR,workers:workersFromPreviousView,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{}});
         try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
+    } else {
+        /* existující roční profil už obsahuje (nebo po migraci dostane) vlastní pracovníky */
     }
     syncYearStartControls(); renderMonths();
+    const workersTitle=document.getElementById("workersPageTitle");
+    if(workersTitle) workersTitle.textContent="Správa pracovníků – "+YEAR;
+    if(document.getElementById("workersPage") && !document.getElementById("workersPage").classList.contains("hidden")) renderWorkersManagement();
     if(typeof renderVacationPlanningPage==="function" && document.getElementById("vacationPlanningPage") && !document.getElementById("vacationPlanningPage").classList.contains("hidden")) renderVacationPlanningPage();
 }
 async function loadPeriodsFromCloud() {
@@ -1846,11 +1933,28 @@ function findVacationMonthForDate(date) {
     return null;
 }
 
+/* v62: Plán dovolených je stejně jako monthly_schedule víceletá tabulka a může
+   překročit 1000 řádků. Načítáme jej proto také po stránkách. */
+async function loadAllVacationPlanRows(selectExpr) {
+    const pageSize = 1000;
+    let from = 0;
+    const all = [];
+    while (true) {
+        const path = "vacation_plan?select=" + encodeURIComponent(selectExpr || "*") +
+            "&order=plan_date.asc,row_number.asc&offset=" + from + "&limit=" + pageSize;
+        const r = await cloudFetch(path, {method:"GET"});
+        if (!r.ok) throw new Error("Načtení plánu dovolených: " + await r.text());
+        const batch = await r.json();
+        all.push.apply(all, batch);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+    }
+    return all;
+}
+
 async function loadVacationPlanFromCloud() {
     setCloudStatus("Načítám plán dovolených…");
-    const r = await cloudFetch("vacation_plan?select=*&order=plan_date.asc,row_number.asc", {method:"GET"});
-    if (!r.ok) throw new Error("Načtení plánu dovolených: " + await r.text());
-    const rows = await r.json();
+    const rows = await loadAllVacationPlanRows("*");
     if (rows.length) {
         vacationPlan = {};
         rows.forEach(function(row) {
@@ -2044,11 +2148,29 @@ function scheduleToCloudRows() {
     return rows;
 }
 
+/* v61: PostgREST/Supabase standardně vrací maximálně 1000 řádků.
+   Měsíční rozdělovník už tento limit překračuje, proto jej načítáme po stránkách. */
+async function loadAllMonthlyScheduleRows(selectExpr) {
+    const pageSize = 1000;
+    let from = 0;
+    const all = [];
+    while (true) {
+        const to = from + pageSize - 1;
+        const path = "monthly_schedule?select=" + encodeURIComponent(selectExpr || "*") +
+            "&order=plan_date.asc,worker_id.asc&offset=" + from + "&limit=" + pageSize;
+        const r = await cloudFetch(path, {method:"GET"});
+        if (!r.ok) throw new Error("Načtení měsíčního rozdělovníku: " + await r.text());
+        const batch = await r.json();
+        all.push.apply(all, batch);
+        if (batch.length < pageSize) break;
+        from += pageSize;
+    }
+    return all;
+}
+
 async function loadScheduleFromCloud() {
     setCloudStatus("Načítám měsíční rozdělovník…");
-    const r = await cloudFetch("monthly_schedule?select=*&order=plan_date.asc,worker_id.asc", {method:"GET"});
-    if (!r.ok) throw new Error("Načtení měsíčního rozdělovníku: " + await r.text());
-    const rows = await r.json();
+    const rows = await loadAllMonthlyScheduleRows("*");
 
     /* v55: po přihlášení je pro měsíční rozdělovník autoritativní Supabase.
        Lokální cache nesmí doplňovat ani obnovovat směny, které už byly v cloudu
@@ -2091,9 +2213,7 @@ async function saveScheduleToCloudNow(force) {
             /* v56: force-save je skutečná synchronizace, ne pouze upsert.
                Řádek, který v lokálním schedule už neexistuje, musí být odstraněn
                i z monthly_schedule. To řeší obecné mazání (6, 19, SL-19...). */
-            let verify = await cloudFetch("monthly_schedule?select=id,plan_date,worker_id,assignment", {method:"GET"});
-            if (!verify.ok) throw new Error("Kontrola měsíčního rozdělovníku: " + await verify.text());
-            let cloudRows = await verify.json();
+            let cloudRows = await loadAllMonthlyScheduleRows("id,plan_date,worker_id,assignment");
             const wanted = new Map();
             rows.forEach(function(row){ wanted.set(row.plan_date + "_" + row.worker_id, row.assignment); });
             for (const c of cloudRows) {
@@ -2105,9 +2225,7 @@ async function saveScheduleToCloudNow(force) {
                     if (!del.ok) throw new Error("Mazání staré směny: " + await del.text());
                 }
             }
-            verify = await cloudFetch("monthly_schedule?select=plan_date,worker_id,assignment", {method:"GET"});
-            if (!verify.ok) throw new Error("Kontrola po synchronizaci: " + await verify.text());
-            cloudRows = await verify.json();
+            cloudRows = await loadAllMonthlyScheduleRows("plan_date,worker_id,assignment");
             for (const row of rows) {
                 const found = cloudRows.some(function(c) {
                     return String(c.plan_date) === row.plan_date && String(c.worker_id) === row.worker_id && String(c.assignment) === row.assignment;
@@ -2213,6 +2331,16 @@ document.addEventListener("DOMContentLoaded", function() {
 ===================================================== */
 
 let YEAR = Number(loadData("rozdelovnik_app_year", 2027)) || 2027;
+
+/* v65: Přesčasy jsou roční data. Starý globální klíč slouží jen jako migrační
+   zdroj a do daného roku pustíme pouze klíče začínající YYYY-. */
+function legacyOvertimeForYear(year) {
+    const legacy = loadData("rozdelovnik_overtime", {});
+    const prefix = String(year) + "-";
+    const out = {};
+    Object.keys(legacy || {}).forEach(function(key){ if(key.indexOf(prefix)===0) out[key]=legacy[key]; });
+    return out;
+}
 
 const monthNames = [
     "Leden",
@@ -2688,10 +2816,12 @@ let schedule =
         : oldSchedule;
 
 
-let overtimeData =
-    hasIndexedKeys(oldOvertimeData)
-        ? migrateIndexedData(oldOvertimeData)
-        : oldOvertimeData;
+const initialYearOvertime = loadData(localYearKey("rozdelovnik_overtime",YEAR), null);
+let overtimeData = initialYearOvertime && typeof initialYearOvertime === "object"
+    ? initialYearOvertime
+    : legacyOvertimeForYear(YEAR);
+if (hasIndexedKeys(overtimeData)) overtimeData = migrateIndexedData(overtimeData);
+saveData(localYearKey("rozdelovnik_overtime",YEAR), overtimeData);
 
 
 /* =====================================================
@@ -3502,6 +3632,13 @@ function setOvertimeValue(
         "rozdelovnik_overtime",
         overtimeData
     );
+    saveData(localYearKey("rozdelovnik_overtime", YEAR), overtimeData);
+    if (cloudSession) {
+        clearTimeout(window.__overtimeCloudTimer);
+        window.__overtimeCloudTimer = setTimeout(function(){
+            saveCurrentYearProfileToCloud().then(function(){ setCloudStatus("Online • uloženo"); }).catch(function(e){ console.error(e); setCloudStatus("Chyba ukládání přesčasu"); });
+        }, 250);
+    }
 }
 
 
@@ -3615,7 +3752,12 @@ function calculateStatistics(
         const fpdHours = Number(String(item.fpd ?? "").replace(",", "."));
 
         if (isSickLeave) {
-            if (effectiveStartsInsidePeriod) daysV += 1;
+            if (effectiveStartsInsidePeriod) {
+                daysV += 1;
+                /* Nemoc nahrazuje naplánovanou směnu, proto se SL-* počítá jako
+                   jedna směna. U SL-19 se směna započte jen v období, kde začala. */
+                shiftCount += 1;
+            }
 
             /* SL s časem (typicky SL-19) se dělí přes půlnoc stejně jako
                původní směna, ale nikdy nevytváří Víkend/Svátek/Noční. */
@@ -4108,6 +4250,12 @@ function showWorkersPage() {
 ===================================================== */
 
 function renderWorkersManagement() {
+    const workersTitle=document.getElementById("workersPageTitle");
+    if(workersTitle) workersTitle.textContent="Správa pracovníků – "+YEAR;
+    const copyBtn=document.getElementById("copyWorkersNextYearBtn");
+    const copyInfo=document.getElementById("copyWorkersNextYearInfo");
+    if(copyBtn){ copyBtn.style.display=isVacationAdmin()?"":"none"; copyBtn.textContent="Kopírovat pracovníky "+YEAR+" → "+(YEAR+1); }
+    if(copyInfo) copyInfo.textContent=isVacationAdmin()?"Zkopíruje pouze seznam pracovníků; ostatní data cílového roku zachová.":"";
 
     const container =
         document.getElementById(
@@ -7100,23 +7248,28 @@ async function resyncVacationYearToSchedule() {
         setCloudStatus("Synchronizuji dovolené "+YEAR+"…");
         const entries=getVacationCodeEntries();
         const desired=[];
-        Object.keys(vacationPlan||{}).forEach(function(key){
-            const code=String(vacationPlan[key]||"").trim();
-            if(!code) return;
-            const parts=key.split("_");
-            if(parts.length<3) return;
-            const dateKey=parts.slice(2).join("_");
+        // v62: pro opravnou synchronizaci čteme celý vacation_plan přímo z cloudu.
+        // Tím resync není závislý na lokální cache ani na dřívějším limitu 1000 řádků.
+        const vacationRows = await loadAllVacationPlanRows("plan_date,row_number,worker_id,code");
+        vacationRows.forEach(function(row){
+            const dateKey=String(row.plan_date||"");
+            const code=String(row.code||"").trim();
+            if(!dateKey || !code) return;
             const d=parseDateKey(dateKey);
             if(!d) return;
             const month=findVacationMonthForDate(d);
             if(month===null) return; // pouze právě zobrazený plánovací rok
-            const entry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===code.toLocaleLowerCase("cs");});
+            const workerId=String(row.worker_id||"");
+            const entry=entries.find(function(e){
+                return e.worker && String(e.worker.id)===workerId &&
+                    e.code.toLocaleLowerCase("cs")===code.toLocaleLowerCase("cs");
+            }) || entries.find(function(e){return e.code.toLocaleLowerCase("cs")===code.toLocaleLowerCase("cs");});
             if(!entry || !entry.worker || !entry.worker.id) return;
             const legendId=findLegendIdByType(entry.assignmentType);
             if(!legendId) return;
             desired.push({
                 plan_date:dateKey,
-                worker_id:String(entry.worker.id),
+                worker_id:workerId || String(entry.worker.id),
                 assignment:String(entry.assignmentType),
                 legendId:legendId
             });
@@ -7130,9 +7283,7 @@ async function resyncVacationYearToSchedule() {
 
         // Načteme existující rozdělovník. Synchronizace je záměrně nedestruktivní:
         // cokoli už pro pracovníka a datum existuje, ponecháme beze změny.
-        const r=await cloudFetch("monthly_schedule?select=plan_date,worker_id,assignment,source",{method:"GET"});
-        if(!r.ok) throw new Error("Načtení měsíčního rozdělovníku: "+await r.text());
-        const existingRows=await r.json();
+        const existingRows=await loadAllMonthlyScheduleRows("plan_date,worker_id,assignment,source");
         const existing=new Set(existingRows.map(function(x){return String(x.plan_date)+"_"+String(x.worker_id);}));
         const missing=desired.filter(function(x){return !existing.has(x.plan_date+"_"+x.worker_id);});
 
@@ -7184,6 +7335,8 @@ function showVacationPage() {
     currentMonth=null;
     const syncBtn=document.getElementById("resyncVacationYearBtn");
     if(syncBtn){ syncBtn.style.display=isVacationAdmin()?"":"none"; syncBtn.textContent="Synchronizovat "+YEAR; }
+    const restoreOtBtn=document.getElementById("restoreOvertime2026Btn");
+    if(restoreOtBtn){ restoreOtBtn.style.display=(isVacationAdmin() && YEAR===2026)?"":"none"; }
     document.getElementById("legendPage").classList.add("hidden");
     document.getElementById("homePage").classList.add("hidden");
     document.getElementById("workersPage").classList.add("hidden");
@@ -7430,6 +7583,5 @@ document.addEventListener("DOMContentLoaded",function(){
     if(b) b.addEventListener("click",applyYearAndStartDate);
 });
 </script>
-
 </body>
 </html>
