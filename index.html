@@ -1682,15 +1682,21 @@ function activeLegendYear(){
 
 function saveActiveLegend(){
     const y=activeLegendYear();
-    localStorage.setItem(legendLocalKey(y),JSON.stringify(legend));
-    /* kompatibilní lokální cache pro starší části aplikace */
-    if(y===YEAR) localStorage.setItem("rozdelovnik_legend",JSON.stringify(legend));
+    const snapshot=cloneLegend(legend);
+    localStorage.setItem(legendLocalKey(y),JSON.stringify(snapshot));
+    /* Historická legenda má vlastní ukládací cestu. Globální kompatibilní cache
+       měníme jen tehdy, když upravujeme legendu právě aktivního roku aplikace. */
+    if(y===YEAR) localStorage.setItem("rozdelovnik_legend",JSON.stringify(snapshot));
     clearTimeout(legendSaveTimer);
+    if(typeof setCloudStatus==="function") setCloudStatus("Ukládám legendu "+y+"…");
     legendSaveTimer=setTimeout(async function(){
         try{
-            await writeAnnualLegend(y,legend);
+            await writeAnnualLegend(y,snapshot);
             if(typeof setCloudStatus==="function") setCloudStatus("Online • legenda "+y+" uložena");
-        }catch(e){ console.error(e); if(typeof setCloudStatus==="function") setCloudStatus("Chyba ukládání legendy "+y); }
+        }catch(e){
+            console.error("Uložení legendy "+y+":",e);
+            if(typeof setCloudStatus==="function") setCloudStatus("Chyba ukládání legendy "+y);
+        }
     },250);
 }
 
