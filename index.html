@@ -1025,8 +1025,6 @@ h1 {
 #cloudStatusBar.status-saving #cloudStatusDot { background: #d18b00; }
 #cloudStatusBar.status-error { border-color: #c62828; }
 #cloudStatusBar.status-error #cloudStatusDot { background: #c62828; }
-#cloudManualSaveBtn { margin-left: 6px; border: 1px solid #9ca3af; background: #fff; border-radius: 6px; padding: 4px 9px; cursor: pointer; font-size: 12px; font-weight: 700; }
-#cloudManualSaveBtn:disabled { opacity: .55; cursor: wait; }
 #cloudLogoutBtn { margin-left: 5px; border: 0; background: transparent; text-decoration: underline; cursor: pointer; font-size: 12px; font-weight: 600; }
 
 
@@ -1099,7 +1097,7 @@ h1 {
     <div id="cloudLoginError"></div>
   </div>
 </div>
-<div id="cloudStatusBar" class="hidden"><span id="cloudStatusDot" aria-hidden="true"></span><span id="cloudStatusText">Online</span><button id="cloudManualSaveBtn" type="button">Uložit</button><button id="cloudLogoutBtn" type="button">Odhlásit</button></div>
+<div id="cloudStatusBar" class="hidden"><span id="cloudStatusDot" aria-hidden="true"></span><span id="cloudStatusText">Online</span><button id="cloudLogoutBtn" type="button">Odhlásit</button></div>
 
 
 <div class="container">
@@ -2541,8 +2539,6 @@ document.addEventListener("DOMContentLoaded", function() {
         } catch(e) { error.textContent = e.message; }
     });
     document.getElementById("cloudPassword").addEventListener("keydown", function(e) { if (e.key === "Enter") document.getElementById("cloudLoginBtn").click(); });
-    const manualSaveBtn = document.getElementById("cloudManualSaveBtn");
-    if (manualSaveBtn) manualSaveBtn.addEventListener("click", manualCloudSave);
     document.getElementById("cloudLogoutBtn").addEventListener("click", function() {
         cloudSession = null; cloudLegendReady = false; cloudWorkersReady = false; cloudPeriodsReady = false; cloudVacationWeekReady = false; cloudVacationPlanReady = false; cloudScheduleReady = false; cloudVacationControlReady = false; localStorage.removeItem(CLOUD_SESSION_KEY); location.reload();
     });
