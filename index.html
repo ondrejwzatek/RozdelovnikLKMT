@@ -3771,6 +3771,20 @@ function findLegendItem(id) {
     );
 }
 
+/* v96: Směna začínající v posledním dni předchozího ročního rozdělovníku
+   je uložená s ID legendy předchozího roku. Při statistice nového roku ji
+   proto nejdřív převedeme přes typ směny (např. 19 / SL-19), nikoli přes ID. */
+function findPreviousYearLegendItemForCarry(id) {
+    const previousLegend = loadData(legendLocalKey(YEAR - 1), []);
+    if (!Array.isArray(previousLegend)) return null;
+    const previousItem = previousLegend.find(function(item){ return item.id === id; });
+    if (!previousItem) return null;
+    const type = String(previousItem.type || "").trim().toLocaleLowerCase("cs");
+    return legend.find(function(item){
+        return String(item.type || "").trim().toLocaleLowerCase("cs") === type;
+    }) || previousItem;
+}
+
 
 /* =====================================================
    KLÍČ PRACOVNÍKA
@@ -3933,7 +3947,15 @@ function calculateStatistics(
         const assignmentText = String(assignment);
         const isCarryIn = assignmentText.indexOf("__carryin__:") === 0;
         const legendAssignment = isCarryIn ? assignmentText.slice("__carryin__:".length) : assignmentText;
-        const item = findLegendItem(legendAssignment);
+
+        /* První kandidát může být poslední den předchozího ročního
+           rozdělovníku. Jeho interní ID patří k legendě YEAR-1. */
+        const isPreviousYearCarryCandidate = dates.length &&
+            makeDateKey(date) < makeDateKey(dates[0]) &&
+            makeDateKey(dates[0]) === makeDateKey(getCurrentDates()[0]);
+        const item = isPreviousYearCarryCandidate
+            ? (findPreviousYearLegendItemForCarry(legendAssignment) || findLegendItem(legendAssignment))
+            : findLegendItem(legendAssignment);
         if (!item) return;
 
         /* Přenos je uložen v prvním viditelném dni, ale výpočetně směna
