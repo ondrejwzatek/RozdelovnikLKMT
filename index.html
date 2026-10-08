@@ -1448,6 +1448,7 @@ h1 {
 
 <script>
 
+
 /* =====================================================
    SUPABASE CLOUD - VER4
    První online krok: přihlášení + centrální Legenda směn.
@@ -4125,9 +4126,20 @@ function calculateStatistics(
 
         /* První kandidát může být poslední den předchozího ročního
            rozdělovníku. Jeho interní ID patří k legendě YEAR-1. */
-        const isPreviousYearCarryCandidate = dates.length &&
+        /* calculateStatistics() se používá i v roční statistice, kde je
+           currentMonth === null. Proto zde nesmíme volat getCurrentDates(),
+           které vyžaduje konkrétní currentMonth. Carry-in z předchozího
+           rozdělovníkového roku je relevantní jen při výpočtu 1. období roku. */
+        const firstAnnualPeriod = getPeriod(0);
+        /* period.from je řetězec YYYY-MM-DD, zatímco makeDateKey()
+           přijímá Date. Převedeme hranici období explicitně na Date. */
+        const firstAnnualPeriodFrom = firstAnnualPeriod && firstAnnualPeriod.from
+            ? new Date(firstAnnualPeriod.from + "T00:00:00")
+            : null;
+        const isPreviousYearCarryCandidate = dates.length && firstAnnualPeriodFrom &&
+            !isNaN(firstAnnualPeriodFrom.getTime()) &&
             makeDateKey(date) < makeDateKey(dates[0]) &&
-            makeDateKey(dates[0]) === makeDateKey(getCurrentDates()[0]);
+            makeDateKey(dates[0]) === makeDateKey(firstAnnualPeriodFrom);
         const item = isPreviousYearCarryCandidate
             ? (findPreviousYearLegendItemForCarry(legendAssignment) || findLegendItem(legendAssignment))
             : findLegendItem(legendAssignment);
@@ -5959,12 +5971,27 @@ async function toggleCurrentMonthAnnualStatistics(){
 /* =====================================================
    ROČNÍ STATISTIKA – SOUČET MĚSÍČNÍCH STATISTIK
 ===================================================== */
-function showAnnualStatisticsPage() {
+async function showAnnualStatisticsPage() {
     currentMonth = null;
     ["homePage","workersPage","vacationPage","monthPage","legendPage","spaInfoPage"].forEach(function(id){
         const el=document.getElementById(id); if(el) el.classList.add("hidden");
     });
     document.getElementById("annualStatisticsPage").classList.remove("hidden");
+
+    /* Roční statistika nesmí spoléhat na obsah schedule z předchozí obrazovky.
+       Před výpočtem načteme směny právě zvoleného rozdělovníkového roku. */
+    if (cloudSession) {
+        try {
+            setCloudStatus("Načítám směny pro roční statistiku…");
+            await loadScheduleFromCloud();
+        } catch (e) {
+            console.error("Načtení směn pro roční statistiku:", e);
+            setCloudStatus("Chyba načítání roční statistiky");
+            const container=document.getElementById("annualStatisticsContent");
+            if(container) container.innerHTML='<div style="padding:16px;border:2px solid #b00020;border-radius:8px;background:#fff3f3;white-space:pre-wrap"><strong>Roční statistiku nelze spočítat:</strong>\n'+escapeHtml(String(e && e.message ? e.message : e))+'</div>';
+            return;
+        }
+    }
     renderAnnualStatistics();
 }
 
@@ -6268,6 +6295,7 @@ function renderAnnualStatistics() {
     status.className="annual-month-status";
     status.innerHTML="<strong>Započítané měsíce:</strong> "+(included.length ? included.join(", ") : "zatím žádný")+" ("+included.length+"/12)";
     container.appendChild(status);
+
 
     const columns=[
         {key:"name",label:"Pracovník"}, {key:"worked",label:"Odpracováno<br>hodin"}, {key:"shiftCount",label:"Počet<br>směn"},
