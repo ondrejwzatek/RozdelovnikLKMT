@@ -2616,7 +2616,7 @@ function buildCzechHolidays(year) {
     out.push(dateToInput(goodFriday),dateToInput(easterMonday));
     return out;
 }
-function refreshHolidaySet(){ holidays=buildCzechHolidays(YEAR); }
+function refreshHolidaySet(){ holidays=[...buildCzechHolidays(YEAR-1),...buildCzechHolidays(YEAR),...buildCzechHolidays(YEAR+1)]; }
 refreshHolidaySet();
 
 
