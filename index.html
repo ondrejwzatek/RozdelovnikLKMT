@@ -1084,7 +1084,6 @@ h1 {
 </head>
 
 <body>
-
 <div id="cloudLoginOverlay">
   <div class="cloud-login-card">
     <h2>Rozdělovník 2027</h2>
@@ -1446,6 +1445,7 @@ h1 {
 </div>
 
 
+
 <script>
 
 /* =====================================================
@@ -1461,6 +1461,9 @@ function isVacationAdmin() {
     return ADMIN_EMAILS.includes(email);
 }
 let cloudSession = null;
+/* Produkce: automatické zápisy ročního profilu jsou povoleny až po dokončení
+   prvotního načtení autoritativních dat ze Supabase. */
+let cloudHydrationComplete = false;
 let cloudLegendReady = false;
 let cloudLegendSaveTimer = null;
 let cloudLegendSaving = false;
@@ -1537,10 +1540,11 @@ async function manualCloudSave() {
         if (Object.keys(manualScheduleChanges || {}).length) {
             await saveManualScheduleChanges();
         }
-        await saveLegendToCloudNow();
-        await saveWorkersToCloudNow();
-        await savePeriodsToCloudNow(true);
-        await saveVacationWeekSettingsToCloudNow(true);
+        /* Produkce: legenda je součástí year_profile_YYYY a uloží se spolu s profilem.
+           Samostatný legend_year_YYYY už běžné ukládání neudržuje. */
+        /* Produkce: workers, month_settings a vacation_week_settings jsou už jen
+           migrační legacy zdroje. Běžné uložení zapisuje roční data výhradně
+           přes year_profile_YYYY níže. */
         await saveVacationPlanToCloudNow(true);
         await saveVacationControlToCloudNow(true);
         await saveCurrentYearProfileToCloud();
@@ -1633,15 +1637,32 @@ async function readLegacyLegendFromCloud(){
     return cloudRowsToLegend(await r.json());
 }
 
+async function readYearProfileValue(year){
+    year=Number(year);
+    if(!cloudSession) return null;
+    const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(yearProfileKey(year))+"&select=setting_value",{method:"GET"});
+    if(!r.ok) throw new Error("Načtení ročního profilu "+year+": "+await r.text());
+    const rows=await r.json();
+    return rows.length && rows[0].setting_value ? rows[0].setting_value : null;
+}
+
 async function readAnnualLegend(year, allowSeed){
     year=Number(year);
     const local=loadData(legendLocalKey(year), null);
     if(cloudSession){
-        const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(legendYearKey(year))+"&select=setting_value",{method:"GET"});
-        if(!r.ok) throw new Error("Načtení legendy "+year+": "+await r.text());
-        const rows=await r.json();
-        if(rows.length && Array.isArray(rows[0].setting_value)){
-            const items=cloneLegend(rows[0].setting_value);
+        /* Produkce: autoritou legendy je year_profile_YYYY. Samostatný
+           legend_year_YYYY čteme už jen jako migrační fallback pro stará data. */
+        const profile=await readYearProfileValue(year);
+        if(profile && Array.isArray(profile.legend)){
+            const items=cloneLegend(profile.legend);
+            localStorage.setItem(legendLocalKey(year),JSON.stringify(items));
+            return items;
+        }
+        const legacyResponse=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(legendYearKey(year))+"&select=setting_value",{method:"GET"});
+        if(!legacyResponse.ok) throw new Error("Načtení staré legendy "+year+": "+await legacyResponse.text());
+        const legacyRows=await legacyResponse.json();
+        if(legacyRows.length && Array.isArray(legacyRows[0].setting_value)){
+            const items=cloneLegend(legacyRows[0].setting_value);
             localStorage.setItem(legendLocalKey(year),JSON.stringify(items));
             return items;
         }
@@ -1671,13 +1692,28 @@ async function writeAnnualLegend(year,items){
     year=Number(year);
     const copy=cloneLegend(items);
     localStorage.setItem(legendLocalKey(year),JSON.stringify(copy));
+    if(year===Number(YEAR)) localStorage.setItem("rozdelovnik_legend",JSON.stringify(copy));
     if(!cloudSession) return;
+
+    /* Produkce: nová legenda se zapisuje pouze do year_profile_YYYY.
+       U historického roku zachováme celý existující profil a změníme jen legendu. */
+    let profile;
+    if(year===Number(YEAR)){
+        profile=makeYearProfile();
+        profile.legend=copy;
+    }else{
+        profile=await readYearProfileValue(year);
+        if(!profile) profile={year:year};
+        else profile=JSON.parse(JSON.stringify(profile));
+        profile.year=year;
+        profile.legend=copy;
+    }
     const r=await cloudFetch("app_settings?on_conflict=setting_key",{
         method:"POST",
         headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
-        body:JSON.stringify({setting_key:legendYearKey(year),setting_value:copy,updated_at:new Date().toISOString()})
+        body:JSON.stringify({setting_key:yearProfileKey(year),setting_value:profile,updated_at:new Date().toISOString()})
     });
-    if(!r.ok) throw new Error("Uložení legendy "+year+": "+await r.text());
+    if(!r.ok) throw new Error("Uložení legendy "+year+" do ročního profilu: "+await r.text());
 }
 
 function activeLegendYear(){
@@ -1722,7 +1758,7 @@ async function saveLegendToCloudNow() {
 }
 
 function queueLegendCloudSave() {
-    if(!cloudLegendReady) return;
+    if(!cloudHydrationComplete || !cloudLegendReady) return;
     saveActiveLegend();
 }
 
@@ -1823,7 +1859,7 @@ function queueWorkersCloudSave() {
     /* Od v59 jsou pracovníci součástí ročního profilu. Globální tabulka workers
        zůstává pouze jako zdroj pro migraci starších dat; změny jednoho roku ji
        už nesmí přepisovat a ovlivnit ostatní roky. */
-    if (!cloudSession) return;
+    if (!cloudSession || !cloudHydrationComplete) return;
     clearTimeout(cloudWorkersSaveTimer);
     cloudWorkersSaveTimer = setTimeout(async function(){
         try {
@@ -2000,9 +2036,8 @@ async function syncAllLocalYearProfilesToCloud(){
                 body:JSON.stringify({setting_key:yearProfileKey(y),setting_value:profile,updated_at:new Date().toISOString()})
             });
             if(!r.ok) throw new Error("Rok "+y+": "+await r.text());
-            /* Legendu držíme i v samostatném ročním klíči, protože ji aplikace při
-               přepnutí roku načítá touto cestou. */
-            if(Array.isArray(profile.legend) && profile.legend.length) await writeAnnualLegend(y,profile.legend);
+            /* Produkce: legenda je už uvnitř year_profile_YYYY; samostatný
+               legend_year_YYYY se při synchronizaci dál nevytváří. */
             synced.push(y);
         }
         setCloudStatus("Online • roky synchronizovány");
@@ -2026,6 +2061,7 @@ async function switchDisplayedYear(newYear){
     newYear=Math.max(2000,Math.min(2100,Number(newYear)||YEAR));
     if(newYear===YEAR) return;
     try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
+    cloudHydrationComplete=false;
     /* Kopie pracovníků slouží jako výchozí stav pouze při založení roku,
        který ještě vlastní profil nemá. Jakmile profil existuje, načte se jeho
        historický seznam a změny jiných let jej neovlivní. */
@@ -2050,6 +2086,11 @@ async function switchDisplayedYear(newYear){
         legend=await readAnnualLegend(YEAR,true);
         localStorage.setItem("rozdelovnik_legend",JSON.stringify(legend));
     }catch(e){ console.error(e); setCloudStatus("Chyba načítání legendy "+YEAR); }
+    /* Produkce: po změně rozdělovníkového roku znovu sestavíme schedule přes
+       hranice a legendu právě zvoleného roku. */
+    if(cloudSession){
+        try{ await loadScheduleFromCloud(); }catch(e){ console.error(e); setCloudStatus("Chyba načítání měsíčního rozdělovníku"); }
+    }
     // Teprve teď mapujeme vacation_plan podle období právě zvoleného roku.
     if(cloudSession){
         try{ await loadVacationPlanFromCloud(); }catch(e){ console.error(e); setCloudStatus("Chyba načítání plánu dovolených"); }
@@ -2060,6 +2101,7 @@ async function switchDisplayedYear(newYear){
     if(workersTitle) workersTitle.textContent="Správa pracovníků – "+YEAR;
     if(document.getElementById("workersPage") && !document.getElementById("workersPage").classList.contains("hidden")) renderWorkersManagement();
     if(typeof renderVacationPlanningPage==="function" && document.getElementById("vacationPlanningPage") && !document.getElementById("vacationPlanningPage").classList.contains("hidden")) renderVacationPlanningPage();    if(document.getElementById("spaInfoPage") && !document.getElementById("spaInfoPage").classList.contains("hidden")) renderSpaInfoPage();
+    cloudHydrationComplete=true;
 }
 async function loadPeriodsFromCloud() {
     setCloudStatus("Načítám období…");
@@ -2112,9 +2154,14 @@ async function savePeriodsToCloudNow(force) {
 }
 
 function queuePeriodsCloudSave() {
-    if (!cloudPeriodsReady || !cloudSession) return;
+    /* Produkce: období jsou roční údaj. Globální month_settings zůstává jen pro
+       migrační fallback; běžná změna se ukládá do year_profile_YYYY. */
+    if (!cloudSession || !cloudHydrationComplete) return;
     clearTimeout(cloudPeriodsSaveTimer);
-    cloudPeriodsSaveTimer = setTimeout(() => savePeriodsToCloudNow(false), 250);
+    cloudPeriodsSaveTimer = setTimeout(async function(){
+        try { await saveCurrentYearProfileToCloud(); }
+        catch(e) { console.error(e); setCloudStatus("Chyba ukládání období"); }
+    }, 250);
 }
 
 
@@ -2181,9 +2228,14 @@ async function saveVacationWeekSettingsToCloudNow(force) {
 }
 
 function queueVacationWeekCloudSave() {
-    if (!cloudVacationWeekReady || !cloudSession) return;
+    /* Produkce: VV/KOEF jsou roční údaj. Globální vacation_week_settings zůstává
+       jen pro migraci; běžná změna se ukládá do year_profile_YYYY. */
+    if (!cloudSession || !cloudHydrationComplete) return;
     clearTimeout(cloudVacationWeekSaveTimer);
-    cloudVacationWeekSaveTimer = setTimeout(function(){ saveVacationWeekSettingsToCloudNow(false); }, 250);
+    cloudVacationWeekSaveTimer = setTimeout(async function(){
+        try { await saveCurrentYearProfileToCloud(); }
+        catch(e) { console.error(e); setCloudStatus("Chyba ukládání VV/KOEF"); }
+    }, 250);
 }
 
 
@@ -2210,7 +2262,7 @@ async function saveVacationControlToCloudNow(force) {
 
 function queueVacationControlCloudSave() {
     saveData(localYearKey("rozdelovnik_vacation_control",YEAR), vacationControl);
-    if (!cloudVacationControlReady || !cloudSession) return;
+    if (!cloudHydrationComplete || !cloudVacationControlReady || !cloudSession) return;
     clearTimeout(cloudVacationControlSaveTimer);
     cloudVacationControlSaveTimer=setTimeout(function(){ saveVacationControlToCloudNow(false).catch(console.error); },250);
 }
@@ -2418,12 +2470,22 @@ function scheduleValueToAssignment(value) {
 }
 
 function assignmentToScheduleValue(assignment) {
+    return assignmentToScheduleValueForLegend(assignment, legend);
+}
+
+/* Produkce: převod cloudového typu směny přes konkrétní roční legendu.
+   Potřebujeme jej hlavně pro jediný předchozí den, který může patřit
+   do předchozího rozdělovníkového roku a mít jiné interní ID legendy. */
+function assignmentToScheduleValueForLegend(assignment, legendItems) {
     const raw = String(assignment || "").trim();
     const carryPrefix = "__carryin__:";
     const isCarryIn = raw.indexOf(carryPrefix) === 0;
     const type = isCarryIn ? raw.slice(carryPrefix.length) : raw;
-    const legendId = findLegendIdByType(type);
-    return legendId ? (isCarryIn ? carryPrefix + legendId : legendId) : "";
+    const items = Array.isArray(legendItems) ? legendItems : [];
+    const item = items.find(function(x) {
+        return String(x.type || "").trim().toLocaleLowerCase("cs") === String(type).toLocaleLowerCase("cs");
+    });
+    return item ? (isCarryIn ? carryPrefix + item.id : item.id) : "";
 }
 
 function scheduleToCloudRows() {
@@ -2468,16 +2530,39 @@ async function loadScheduleFromCloud() {
     setCloudStatus("Načítám měsíční rozdělovník…");
     const rows = await loadAllMonthlyScheduleRows("*");
 
-    /* v55: po přihlášení je pro měsíční rozdělovník autoritativní Supabase.
-       Lokální cache nesmí doplňovat ani obnovovat směny, které už byly v cloudu
-       smazány. Proto schedule VŽDY sestavíme znovu pouze z odpovědi DB – i když
-       je odpověď prázdná. Dřívější větev při prázdné DB naopak nahrála starý
-       localStorage zpět do cloudu, což mohlo oživovat smazané směny. */
+    /* Produkce: schedule v paměti drží pouze právě otevřený ROZDĚLOVNÍKOVÝ rok,
+       nikoli všechny kalendářní roky smíchané přes jednu legendu. Hranice bereme
+       z periodSetup: první den 1. období až poslední den 12. období. Přidáváme
+       ještě jediný předchozí den kvůli směnám přes půlnoc/statistice carry-in. */
+    recalculateMonthPeriods();
+    const firstPeriod = getPeriod(0);
+    const lastPeriod = getPeriod(11);
+    const rangeStart = String(firstPeriod && firstPeriod.from || "");
+    const rangeEnd = String(lastPeriod && lastPeriod.to || "");
+    let previousDateKey = "";
+    const startDate = parseLocalDate(rangeStart);
+    if (startDate) {
+        const previousDate = new Date(startDate);
+        previousDate.setDate(previousDate.getDate() - 1);
+        previousDateKey = dateToInput(previousDate);
+    }
+
+    let previousLegend = [];
+    if (previousDateKey && cloudSession) {
+        try { previousLegend = await readAnnualLegend(YEAR - 1, false); }
+        catch(e) { console.error("Produkce: legenda předchozího roku:", e); }
+    }
+
     schedule = {};
     rows.forEach(function(row) {
         const dateKey = String(row.plan_date || "");
         const workerId = String(row.worker_id || "");
-        const legendId = assignmentToScheduleValue(row.assignment);
+        const insideCurrentDistributionYear = !!dateKey && dateKey >= rangeStart && dateKey <= rangeEnd;
+        const isPreviousCarryDay = !!previousDateKey && dateKey === previousDateKey;
+        if (!insideCurrentDistributionYear && !isPreviousCarryDay) return;
+        const legendId = isPreviousCarryDay
+            ? assignmentToScheduleValueForLegend(row.assignment, previousLegend)
+            : assignmentToScheduleValue(row.assignment);
         if (dateKey && workerId && legendId) schedule[dateKey + "_" + workerId] = legendId;
     });
     localStorage.setItem("rozdelovnik_schedule", JSON.stringify(schedule));
@@ -2590,7 +2675,19 @@ async function initCloud() {
     try { cloudSession = JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY) || "null"); } catch(e) { cloudSession = null; }
     if (cloudSession && cloudSession.refresh_token && await cloudRefreshSession()) {
         overlay.classList.add("hidden"); status.classList.remove("hidden");
-        try { await loadLegendFromCloud(); await loadWorkersFromCloud(); await loadPeriodsFromCloud(); await loadVacationWeekSettingsFromCloud(); if(!(await loadYearProfileFromCloud(YEAR))){ if(YEAR===2027){ await saveCurrentYearProfileToCloud(); } else { applyYearProfile({year:YEAR,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{},annualStatisticsMonths:{}}); await saveCurrentYearProfileToCloud(); } } loadVacationPlanLocalForYear(YEAR); await loadVacationPlanFromCloud(); await loadRound0CloudForYear(YEAR); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); } catch(e) { console.error(e); setCloudStatus("Chyba připojení"); }
+        try {
+            /* test02: roční profil je autoritativní zdroj. Staré globální tabulky
+               použijeme jen jako kompatibilní fallback pro rok bez profilu. */
+            let hasYearProfile = await loadYearProfileFromCloud(YEAR);
+            if (!hasYearProfile) {
+                await loadLegendFromCloud();
+                await loadWorkersFromCloud();
+                await loadPeriodsFromCloud();
+                await loadVacationWeekSettingsFromCloud();
+                applyYearProfile({year:YEAR,workers:cloneWorkersForYear(workers),periodSetup:periodSetup||defaultPeriodSetupForYear(YEAR),vacationVV:vacationVV||{},vacationKoef:vacationKoef||{},vacationWeekNote:vacationWeekNote||{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{},annualStatisticsMonths:{},legend:cloneLegend(legend)});
+                await saveCurrentYearProfileToCloud();
+            }
+            loadVacationPlanLocalForYear(YEAR); await loadVacationPlanFromCloud(); await loadRound0CloudForYear(YEAR); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); cloudHydrationComplete=true; } catch(e) { cloudHydrationComplete=false; console.error(e); setCloudStatus("Chyba připojení"); }
     }
 }
 
@@ -2601,21 +2698,27 @@ document.addEventListener("DOMContentLoaded", function() {
             await cloudLogin(document.getElementById("cloudEmail").value.trim(), document.getElementById("cloudPassword").value);
             document.getElementById("cloudLoginOverlay").classList.add("hidden");
             document.getElementById("cloudStatusBar").classList.remove("hidden");
-            await loadLegendFromCloud();
-            await loadWorkersFromCloud();
-            await loadPeriodsFromCloud();
-            await loadVacationWeekSettingsFromCloud();
-            if(!(await loadYearProfileFromCloud(YEAR))){ if(YEAR===2027){ await saveCurrentYearProfileToCloud(); } else { applyYearProfile({year:YEAR,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{},annualStatisticsMonths:{}}); await saveCurrentYearProfileToCloud(); } }
+            /* test02: po přihlášení má přednost roční profil v app_settings. */
+            let hasYearProfile = await loadYearProfileFromCloud(YEAR);
+            if (!hasYearProfile) {
+                await loadLegendFromCloud();
+                await loadWorkersFromCloud();
+                await loadPeriodsFromCloud();
+                await loadVacationWeekSettingsFromCloud();
+                applyYearProfile({year:YEAR,workers:cloneWorkersForYear(workers),periodSetup:periodSetup||defaultPeriodSetupForYear(YEAR),vacationVV:vacationVV||{},vacationKoef:vacationKoef||{},vacationWeekNote:vacationWeekNote||{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{},annualStatisticsMonths:{},legend:cloneLegend(legend)});
+                await saveCurrentYearProfileToCloud();
+            }
             loadVacationPlanLocalForYear(YEAR);
             await loadVacationPlanFromCloud();
             await loadRound0CloudForYear(YEAR);
             await loadScheduleFromCloud();
             await loadVacationControlFromCloud();
-        } catch(e) { error.textContent = e.message; }
+            cloudHydrationComplete=true;
+        } catch(e) { cloudHydrationComplete=false; error.textContent = e.message; }
     });
     document.getElementById("cloudPassword").addEventListener("keydown", function(e) { if (e.key === "Enter") document.getElementById("cloudLoginBtn").click(); });
     document.getElementById("cloudLogoutBtn").addEventListener("click", function() {
-        cloudSession = null; cloudLegendReady = false; cloudWorkersReady = false; cloudPeriodsReady = false; cloudVacationWeekReady = false; cloudVacationPlanReady = false; cloudScheduleReady = false; cloudVacationControlReady = false; localStorage.removeItem(CLOUD_SESSION_KEY); location.reload();
+        cloudSession = null; cloudHydrationComplete = false; cloudLegendReady = false; cloudWorkersReady = false; cloudPeriodsReady = false; cloudVacationWeekReady = false; cloudVacationPlanReady = false; cloudScheduleReady = false; cloudVacationControlReady = false; localStorage.removeItem(CLOUD_SESSION_KEY); location.reload();
     });
     initCloud();
 });
@@ -8535,5 +8638,6 @@ document.addEventListener("DOMContentLoaded",function(){
     if(b) b.addEventListener("click",applyYearAndStartDate);
 });
 </script>
+
 </body>
 </html>
