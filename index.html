@@ -1150,6 +1150,10 @@ h1 {
                 ♨ Přehled lázní
             </button>
 
+            <button type="button" class="button button-blue" onclick="syncAllLocalYearProfilesToCloud()" title="Jednorázově přenese lokální roční profily tohoto prohlížeče do Supabase">
+                ☁ Synchronizovat roky
+            </button>
+
             <button
                 type="button"
                 class="button button-green"
@@ -1942,6 +1946,74 @@ async function saveCurrentYearProfileToCloud(){
     const r=await cloudFetch("app_settings?on_conflict=setting_key",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({setting_key:yearProfileKey(YEAR),setting_value:profile,updated_at:new Date().toISOString()})});
     if(!r.ok) throw new Error("Uložení ročního profilu: "+await r.text());
 }
+function localYearProfileEvidence(year){
+    const keys=[
+        "rozdelovnik_workers","rozdelovnik_period_setup","rozdelovnik_vacation_vv",
+        "rozdelovnik_vacation_koef","rozdelovnik_vacation_week_note","rozdelovnik_vacation_control",
+        "rozdelovnik_manual_statistics","rozdelovnik_overtime","rozdelovnik_annual_statistics_months",
+        "rozdelovnik_annual_vacation_days","rozdelovnik_annual_shift_category_map"
+    ];
+    return keys.some(function(base){ return localStorage.getItem(localYearKey(base,year))!==null; }) ||
+        localStorage.getItem(legendLocalKey(year))!==null ||
+        localStorage.getItem("rozdelovnik_spa_catalog_"+String(year))!==null;
+}
+function makeLocalYearProfileForSync(year){
+    year=Number(year);
+    const workersLocal=loadData(localYearKey("rozdelovnik_workers",year), []);
+    const periodLocal=loadData(localYearKey("rozdelovnik_period_setup",year), null);
+    const vacationControlLocal=loadData(localYearKey("rozdelovnik_vacation_control",year), null);
+    const annualVacationLocal=Number(loadData(localYearKey("rozdelovnik_annual_vacation_days",year),30));
+    return {
+        year:year,
+        workers:Array.isArray(workersLocal)?cloneWorkersForYear(workersLocal):[],
+        periodSetup:periodLocal || defaultPeriodSetupForYear(year),
+        vacationVV:loadData(localYearKey("rozdelovnik_vacation_vv",year),{}),
+        vacationKoef:loadData(localYearKey("rozdelovnik_vacation_koef",year),{}),
+        vacationWeekNote:loadData(localYearKey("rozdelovnik_vacation_week_note",year),{}),
+        vacationControl:normalizeVacationControl(vacationControlLocal || Object.assign(defaultVacationControl(),{planningYear:year})),
+        manualStatistics:loadData(localYearKey("rozdelovnik_manual_statistics",year),{}),
+        overtimeData:loadData(localYearKey("rozdelovnik_overtime",year),{}),
+        annualStatisticsMonths:loadData(localYearKey("rozdelovnik_annual_statistics_months",year),{}),
+        annualVacationDays:Number.isFinite(annualVacationLocal)&&annualVacationLocal>=0?annualVacationLocal:30,
+        annualShiftCategoryMap:normalizeAnnualShiftCategoryMap(loadData(localYearKey("rozdelovnik_annual_shift_category_map",year),defaultAnnualShiftCategoryMap())),
+        legend:cloneLegend(loadData(legendLocalKey(year),[])),
+        spaCatalog:cloneSpaCatalog(loadData("rozdelovnik_spa_catalog_"+String(year),[]))
+    };
+}
+async function syncAllLocalYearProfilesToCloud(){
+    if(!cloudSession){ alert("Nejdřív se přihlas do cloudu."); return; }
+    const years=[];
+    for(let y=2000;y<=2100;y++) if(localYearProfileEvidence(y)) years.push(y);
+    if(!years.length){ alert("V tomto prohlížeči jsem nenašel žádné lokálně uložené roční profily."); return; }
+    if(!confirm("Synchronizovat lokálně uložené roky "+years.join(", ")+" do Supabase?\\n\\nPřenesou se pouze roční profily. Měsíční směny se touto akcí nemění.")) return;
+    const synced=[];
+    try{
+        setCloudStatus("Synchronizuji roční profily…");
+        /* Aktuální rok nejdřív uložíme z živého stavu aplikace, aby se neztratila
+           změna, která ještě nebyla propsaná do jeho ročních localStorage klíčů. */
+        if(years.indexOf(Number(YEAR))>=0){ await saveCurrentYearProfileToCloud(); synced.push(Number(YEAR)); }
+        for(const y of years){
+            if(y===Number(YEAR)) continue;
+            const profile=makeLocalYearProfileForSync(y);
+            const r=await cloudFetch("app_settings?on_conflict=setting_key",{
+                method:"POST", headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+                body:JSON.stringify({setting_key:yearProfileKey(y),setting_value:profile,updated_at:new Date().toISOString()})
+            });
+            if(!r.ok) throw new Error("Rok "+y+": "+await r.text());
+            /* Legendu držíme i v samostatném ročním klíči, protože ji aplikace při
+               přepnutí roku načítá touto cestou. */
+            if(Array.isArray(profile.legend) && profile.legend.length) await writeAnnualLegend(y,profile.legend);
+            synced.push(y);
+        }
+        setCloudStatus("Online • roky synchronizovány");
+        alert("Hotovo. Do cloudu byly synchronizovány roky: "+synced.sort().join(", ")+".\\n\\nTeď otevři GitHub Pages v novém/obnoveném okně a zkontroluj stejné roky.");
+    }catch(e){
+        console.error("Synchronizace ročních profilů:",e);
+        setCloudStatus("Chyba synchronizace ročních profilů");
+        alert("Synchronizace se zastavila: "+(e&&e.message?e.message:e));
+    }
+}
+
 async function loadYearProfileFromCloud(year){
     if(!cloudSession) return false;
     const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(yearProfileKey(year))+"&select=setting_value",{method:"GET"});
