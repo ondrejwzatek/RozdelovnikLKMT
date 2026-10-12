@@ -1966,6 +1966,7 @@ async function copyWorkersToNextYear(){
         }
         targetProfile.year=targetYear;
         targetProfile.workers=sourceWorkers;
+        await preserveCloudSpaCatalog(targetYear,targetProfile);
         localStorage.setItem(localYearKey("rozdelovnik_workers",targetYear),JSON.stringify(sourceWorkers));
         if(cloudSession){
             const r=await cloudFetch("app_settings?on_conflict=setting_key",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({setting_key:yearProfileKey(targetYear),setting_value:targetProfile,updated_at:new Date().toISOString()})});
@@ -1978,9 +1979,25 @@ async function copyWorkersToNextYear(){
     }
 }
 
+/* v oprave lazni 2026: centralni ochrana pred ztratou katalogu pri ukladani profilu.
+   Prazdny katalog v lokalnim stavu nesmi smazat existujici nabidku v cloudu. */
+async function preserveCloudSpaCatalog(year, profile){
+    if(!cloudSession || !profile || !Array.isArray(profile.spaCatalog) || profile.spaCatalog.length) return profile;
+    const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(yearProfileKey(year))+"&select=setting_value",{method:"GET"});
+    if(!r.ok) throw new Error("Nelze overit lazne "+year+": "+await r.text());
+    const rows=await r.json();
+    if(!Array.isArray(rows)) throw new Error("Neplatna odpoved Supabase pri kontrole lazni "+year);
+    const remote=rows.length && rows[0] && rows[0].setting_value;
+    if(remote && Array.isArray(remote.spaCatalog) && remote.spaCatalog.length){
+        profile.spaCatalog=cloneSpaCatalog(remote.spaCatalog);
+        if(Number(year)===Number(YEAR)) setSpaCatalogForYear(year,profile.spaCatalog);
+    }
+    return profile;
+}
 async function saveCurrentYearProfileToCloud(){
     if(!cloudSession) return;
     const profile=makeYearProfile();
+    await preserveCloudSpaCatalog(YEAR,profile);
     const r=await cloudFetch("app_settings?on_conflict=setting_key",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({setting_key:yearProfileKey(YEAR),setting_value:profile,updated_at:new Date().toISOString()})});
     if(!r.ok) throw new Error("Uložení ročního profilu: "+await r.text());
 }
@@ -2033,6 +2050,7 @@ async function syncAllLocalYearProfilesToCloud(){
         for(const y of years){
             if(y===Number(YEAR)) continue;
             const profile=makeLocalYearProfileForSync(y);
+            await preserveCloudSpaCatalog(y,profile);
             const r=await cloudFetch("app_settings?on_conflict=setting_key",{
                 method:"POST", headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
                 body:JSON.stringify({setting_key:yearProfileKey(y),setting_value:profile,updated_at:new Date().toISOString()})
