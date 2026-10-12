@@ -1261,6 +1261,7 @@ h1 {
                         <th>D svátek</th>
 
                         <th>Fond D/RH</th>
+                        <th>Historie fondu</th>
 
                         <th>Barva</th>
 
@@ -3024,6 +3025,9 @@ function normalizeWorker(worker, index) {
                 Number.isFinite(Number(worker.dRhFund))
                     ? Number(worker.dRhFund)
                     : 6.8,
+            dRhFundHistory: Array.isArray(worker.dRhFundHistory) ? worker.dRhFundHistory.filter(function(x){
+                return x && /^\d{4}-\d{2}-\d{2}$/.test(String(x.from||"")) && Number.isFinite(Number(x.hours));
+            }).map(function(x){ return {from:String(x.from),hours:Number(x.hours)}; }) : [],
 
             color: worker.color || ""
 
@@ -4082,6 +4086,50 @@ function calculateOvertime(
    STATISTIKA SMĚN
 ===================================================== */
 
+function getWorkerDrhFundForDate(worker, date){
+    const base=worker && Number.isFinite(Number(worker.dRhFund)) ? Number(worker.dRhFund) : 6.8;
+    if(!worker || !(date instanceof Date) || isNaN(date.getTime())) return base;
+    const key=makeDateKey(date);
+    const history=Array.isArray(worker.dRhFundHistory) ? worker.dRhFundHistory : [];
+    let result=base, last="";
+    if(YEAR===2023 && /jiřičn/i.test(String(worker.name||"")) && history.length===0){
+        result=key<"2023-03-27" ? 6.8 : 7.5;
+    }
+    history.forEach(function(entry){
+        const from=String(entry && entry.from || "");
+        const value=Number(entry && entry.hours);
+        if(/^\d{4}-\d{2}-\d{2}$/.test(from) && from<=key && from>=last && Number.isFinite(value) && value>=0){
+            result=value;last=from;
+        }
+    });
+    return result;
+}
+function editWorkerDrhFundHistory(workerId){
+    const worker=workers.find(function(w){return w.id===workerId;});
+    if(!worker)return;
+    const existing=Array.isArray(worker.dRhFundHistory) ? worker.dRhFundHistory : [];
+    const preset=YEAR===2023 && /jiřičn/i.test(String(worker.name||"")) && existing.length===0
+        ? [{from:"2023-01-01",hours:6.8},{from:"2023-03-27",hours:7.5}] : existing;
+    const current=preset.map(function(e){return e.from+"="+e.hours;}).join("\n");
+    const answer=prompt("Historie fondu D/RH – "+worker.name+" (rok "+YEAR+")\nJeden řádek = RRRR-MM-DD=hodiny.\nPrázdné pole = bez historie (použije se základní fond).",current);
+    if(answer===null)return;
+    const rows=[];
+    for(const line of answer.split(/\r?\n/)){
+        if(!line.trim())continue;
+        const match=line.trim().match(/^(\d{4}-\d{2}-\d{2})\s*=\s*(\d+(?:[.,]\d+)?)$/);
+        if(!match || !Number.isFinite(new Date(match[1]+"T00:00:00").getTime())){
+            alert("Neplatný řádek: "+line+"\nPoužij např. 2023-03-27=7,5");return;
+        }
+        rows.push({from:match[1],hours:Number(match[2].replace(",","."))});
+    }
+    rows.sort(function(a,b){return a.from.localeCompare(b.from);});
+    if(new Set(rows.map(function(r){return r.from;})).size!==rows.length){alert("Datum může být uvedeno jen jednou.");return;}
+    worker.dRhFundHistory=rows;
+    saveData("rozdelovnik_workers",workers);
+    renderWorkersManagement();
+    if(currentMonth!==null && typeof renderTable==="function")renderTable();
+}
+
 function calculateStatistics(
     workerId,
     dates
@@ -4101,7 +4149,6 @@ function calculateStatistics(
 
     const dateKeys = new Set(dates.map(makeDateKey));
     const worker = workers.find(function(currentWorker){ return currentWorker.id === workerId; });
-    const dRhFund = worker && Number.isFinite(Number(worker.dRhFund)) ? Number(worker.dRhFund) : 6.8;
 
     /* Pro směny přes půlnoc musíme zahrnout i směnu, která začala den před
        prvním dnem zobrazeného období. Tím se např. 31.1. 19:30–1.2. 07:30
@@ -4153,6 +4200,7 @@ function calculateStatistics(
             date.setDate(date.getDate() - 1);
         }
         const effectiveStartsInsidePeriod = isCarryIn ? false : startsInsidePeriod;
+        const dRhFund = getWorkerDrhFundForDate(worker, date);
 
         const itemType = String(item.type || "").trim().toLocaleUpperCase("cs");
 
@@ -4870,6 +4918,17 @@ function renderWorkersManagement() {
                 )
             );
 
+
+            /* Datumově platná historie fondu D/RH */
+            const fundHistoryCell=document.createElement("td");
+            const fundHistoryButton=document.createElement("button");
+            fundHistoryButton.type="button";
+            fundHistoryButton.className="button";
+            fundHistoryButton.textContent="Historie";
+            fundHistoryButton.title="Nastavit fond D/RH od konkrétních dat";
+            fundHistoryButton.addEventListener("click",function(){editWorkerDrhFundHistory(worker.id);});
+            fundHistoryCell.appendChild(fundHistoryButton);
+            row.appendChild(fundHistoryCell);
 
             /* BARVA PRACOVNÍKA */
 
