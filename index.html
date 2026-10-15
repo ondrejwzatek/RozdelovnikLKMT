@@ -1149,9 +1149,7 @@ h1 {
                 ♨ Přehled lázní
             </button>
 
-            <button type="button" class="button button-blue" onclick="syncAllLocalYearProfilesToCloud()" title="Jednorázově přenese lokální roční profily tohoto prohlížeče do Supabase">
-                ☁ Synchronizovat roky
-            </button>
+
 
             <button
                 type="button"
@@ -1211,6 +1209,9 @@ h1 {
         <h2 id="workersPageTitle">Správa pracovníků</h2>
 
         <div class="toolbar-buttons">
+            <button type="button" class="button" id="workersPrevYearBtn" onclick="changeWorkersViewYear(-1)" aria-label="Předchozí rok">‹</button>
+            <select id="workersYearSelect" class="button" onchange="selectWorkersViewYear(this.value)" aria-label="Rok správy pracovníků"></select>
+            <button type="button" class="button" id="workersNextYearBtn" onclick="changeWorkersViewYear(1)" aria-label="Následující rok">›</button>
             <button
                 type="button"
                 class="button"
@@ -4716,6 +4717,29 @@ function showMonth(month) {
    SPRÁVA PRACOVNÍKŮ
 ===================================================== */
 
+function refreshWorkersYearControls(){
+    const select=document.getElementById("workersYearSelect");
+    if(!select) return;
+    select.innerHTML="";
+    for(let year=2020;year<=2035;year++){
+        const option=document.createElement("option");
+        option.value=String(year);
+        option.textContent=String(year);
+        select.appendChild(option);
+    }
+    select.value=String(YEAR);
+    document.getElementById("workersPrevYearBtn").disabled=YEAR<=2020;
+    document.getElementById("workersNextYearBtn").disabled=YEAR>=2035;
+}
+async function selectWorkersViewYear(year){
+    const target=Math.max(2020,Math.min(2035,Number(year)||YEAR));
+    if(target!==YEAR) await switchDisplayedYear(target);
+    refreshWorkersYearControls();
+}
+function changeWorkersViewYear(delta){
+    return selectWorkersViewYear(YEAR+Number(delta));
+}
+
 function showWorkersPage() {
 
     currentMonth = null;
@@ -4739,6 +4763,7 @@ function showWorkersPage() {
         .classList.remove("hidden");
 
 
+    refreshWorkersYearControls();
     renderWorkersManagement();
 }
 
@@ -4748,6 +4773,7 @@ function showWorkersPage() {
 ===================================================== */
 
 function renderWorkersManagement() {
+    refreshWorkersYearControls();
     const workersTitle=document.getElementById("workersPageTitle");
     if(workersTitle) workersTitle.textContent="Správa pracovníků – "+YEAR;
     const copyBtn=document.getElementById("copyWorkersNextYearBtn");
