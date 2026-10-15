@@ -1766,97 +1766,7 @@ function queueLegendCloudSave() {
 }
 
 
-function workersToCloudRows(items) {
-    return items.map(function(worker, i) {
-        return {
-            id: String(worker.id || generateWorkerId()),
-            name: String(worker.name || ""),
-            code_d: String(worker.d || ""),
-            code_rh: String(worker.rh || ""),
-            code_ang: String(worker.ang || ""),
-            code_dholiday: String(worker.dHoliday || ""),
-            color: String(worker.color || getWorkerColor(worker, i) || "#ffffff"),
-            sort_order: i,
-            active: true,
-            updated_at: new Date().toISOString()
-        };
-    });
-}
-
-function cloudRowsToWorkers(rows) {
-    const localById = {};
-    (Array.isArray(workers) ? workers : []).forEach(function(w) { localById[w.id] = w; });
-    return rows.filter(function(row) { return row.active !== false; }).map(function(row) {
-        const old = localById[row.id] || {};
-        return normalizeWorker({
-            id: row.id,
-            name: row.name || "",
-            d: row.code_d || "",
-            rh: row.code_rh || "",
-            ang: row.code_ang || "",
-            dHoliday: row.code_dholiday || "",
-            dRhFund: old.dRhFund == null ? 6.8 : old.dRhFund,
-            color: row.color || ""
-        });
-    });
-}
-
-async function loadWorkersFromCloud() {
-    setCloudStatus("Načítám pracovníky…");
-    const r = await cloudFetch("workers?select=*&active=eq.true&order=sort_order.asc,id.asc", {method:"GET"});
-    if (!r.ok) throw new Error("Načtení pracovníků: " + await r.text());
-    const rows = await r.json();
-    if (rows.length) {
-        workers = cloudRowsToWorkers(rows);
-        localStorage.setItem("rozdelovnik_workers", JSON.stringify(workers));
-    } else {
-        await saveWorkersToCloudNow();
-    }
-    cloudWorkersReady = true;
-    setCloudStatus("Online • legenda a pracovníci synchronizováni");
-    if (document.getElementById("workersPage") && !document.getElementById("workersPage").classList.contains("hidden")) renderWorkersManagement();
-    if (currentMonth !== null) renderTable();
-    if (typeof renderVacationPlanning === "function" && document.getElementById("vacationPage") && !document.getElementById("vacationPage").classList.contains("hidden")) renderVacationPlanning();
-}
-
-async function saveWorkersToCloudNow() {
-    if (!cloudSession || !Array.isArray(workers)) return;
-    if (cloudWorkersSaving) { cloudWorkersSavePending = true; return; }
-    cloudWorkersSaving = true;
-    setCloudStatus("Ukládám pracovníky…");
-    try {
-        const rows = workersToCloudRows(workers);
-        if (rows.length) {
-            let r = await cloudFetch("workers?on_conflict=id", {
-                method:"POST",
-                headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
-                body:JSON.stringify(rows)
-            });
-            if (!r.ok) throw new Error(await r.text());
-        }
-        // Pracovníky, kteří už v aktuálním seznamu nejsou, pouze deaktivujeme.
-        const activeIds = new Set(workers.map(function(w){ return String(w.id); }));
-        let r = await cloudFetch("workers?select=id&active=eq.true", {method:"GET"});
-        if (!r.ok) throw new Error(await r.text());
-        const cloudRows = await r.json();
-        for (const row of cloudRows) {
-            if (!activeIds.has(String(row.id))) {
-                r = await cloudFetch("workers?id=eq." + encodeURIComponent(row.id), {
-                    method:"PATCH",
-                    headers:{"Prefer":"return=minimal"},
-                    body:JSON.stringify({active:false, updated_at:new Date().toISOString()})
-                });
-                if (!r.ok) throw new Error(await r.text());
-            }
-        }
-        setCloudStatus("Online • uloženo");
-    } catch(e) {
-        console.error(e); setCloudStatus("Chyba ukládání pracovníků");
-    } finally {
-        cloudWorkersSaving = false;
-        if (cloudWorkersSavePending) { cloudWorkersSavePending = false; saveWorkersToCloudNow(); }
-    }
-}
+/* Pracovníci se čtou a ukládají výhradně v app_settings.year_profile_YYYY. */
 
 function queueWorkersCloudSave() {
     /* Od v59 jsou pracovníci součástí ročního profilu. Globální tabulka workers
@@ -1909,9 +1819,8 @@ function applyYearProfile(profile){
     /* Starší roční profily pracovníky neobsahovaly. Při prvním otevření takového
        roku zachováme právě načtený seznam jako migrační základ a profil se při
        dalším uložení doplní. */
-    if(Array.isArray(profile.workers) && profile.workers.length){
-        workers=cloneWorkersForYear(profile.workers);
-    }
+    /* Chybějící seznam nesmí převzít pracovníky z jiného roku nebo lokální cache. */
+    workers=cloneWorkersForYear(Array.isArray(profile.workers) ? profile.workers : []);
     localStorage.setItem(localYearKey("rozdelovnik_workers",YEAR),JSON.stringify(workers));
     localStorage.setItem("rozdelovnik_workers",JSON.stringify(workers));
     periodSetup=profile.periodSetup || defaultPeriodSetupForYear(YEAR);
@@ -2094,7 +2003,13 @@ async function switchDisplayedYear(newYear){
     // Lázeňské přidělení pracovníků se načítá samostatně pro právě zvolený rok.
     await loadSpaRequestsCloudForYear(YEAR);
     let loaded=false;
-    try{ loaded=await loadYearProfileFromCloud(YEAR); }catch(e){ console.error(e); }
+    try{ loaded=await loadYearProfileFromCloud(YEAR); }
+    catch(e){
+        console.error(e);
+        setCloudStatus("Chyba načítání ročního profilu "+YEAR);
+        alert("Roční profil "+YEAR+" se nepodařilo načíst. Nebude nahrazen lokálními daty.");
+        return;
+    }
     if(!loaded){
         applyYearProfile({year:YEAR,workers:workersFromPreviousView,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{},annualStatisticsMonths:{},spaCatalog:[]});
         try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
@@ -2697,16 +2612,10 @@ async function initCloud() {
     if (cloudSession && cloudSession.refresh_token && await cloudRefreshSession()) {
         overlay.classList.add("hidden"); status.classList.remove("hidden");
         try {
-            /* test02: roční profil je autoritativní zdroj. Staré globální tabulky
-               použijeme jen jako kompatibilní fallback pro rok bez profilu. */
+            /* Jediný databázový zdroj pracovníků: app_settings.year_profile_YYYY. */
             let hasYearProfile = await loadYearProfileFromCloud(YEAR);
             if (!hasYearProfile) {
-                await loadLegendFromCloud();
-                await loadWorkersFromCloud();
-                await loadPeriodsFromCloud();
-                await loadVacationWeekSettingsFromCloud();
-                applyYearProfile({year:YEAR,workers:cloneWorkersForYear(workers),periodSetup:periodSetup||defaultPeriodSetupForYear(YEAR),vacationVV:vacationVV||{},vacationKoef:vacationKoef||{},vacationWeekNote:vacationWeekNote||{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{},annualStatisticsMonths:{},legend:cloneLegend(legend)});
-                await saveCurrentYearProfileToCloud();
+                throw new Error("Rok "+YEAR+" nemá profil v app_settings. Pracovníky nelze načíst z globální tabulky workers. Založte rok kopírováním pracovníků z jiného roku.");
             }
             loadVacationPlanLocalForYear(YEAR); await loadVacationPlanFromCloud(); await loadRound0CloudForYear(YEAR); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); cloudHydrationComplete=true; } catch(e) { cloudHydrationComplete=false; console.error(e); setCloudStatus("Chyba připojení"); }
     }
@@ -2719,15 +2628,10 @@ document.addEventListener("DOMContentLoaded", function() {
             await cloudLogin(document.getElementById("cloudEmail").value.trim(), document.getElementById("cloudPassword").value);
             document.getElementById("cloudLoginOverlay").classList.add("hidden");
             document.getElementById("cloudStatusBar").classList.remove("hidden");
-            /* test02: po přihlášení má přednost roční profil v app_settings. */
+            /* Jediný databázový zdroj pracovníků: app_settings.year_profile_YYYY. */
             let hasYearProfile = await loadYearProfileFromCloud(YEAR);
             if (!hasYearProfile) {
-                await loadLegendFromCloud();
-                await loadWorkersFromCloud();
-                await loadPeriodsFromCloud();
-                await loadVacationWeekSettingsFromCloud();
-                applyYearProfile({year:YEAR,workers:cloneWorkersForYear(workers),periodSetup:periodSetup||defaultPeriodSetupForYear(YEAR),vacationVV:vacationVV||{},vacationKoef:vacationKoef||{},vacationWeekNote:vacationWeekNote||{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{},annualStatisticsMonths:{},legend:cloneLegend(legend)});
-                await saveCurrentYearProfileToCloud();
+                throw new Error("Rok "+YEAR+" nemá profil v app_settings. Pracovníky nelze načíst z globální tabulky workers. Založte rok kopírováním pracovníků z jiného roku.");
             }
             loadVacationPlanLocalForYear(YEAR);
             await loadVacationPlanFromCloud();
