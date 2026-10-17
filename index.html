@@ -1907,6 +1907,14 @@ async function preserveCloudSpaCatalog(year, profile){
 async function saveCurrentYearProfileToCloud(){
     if(!cloudSession) return;
     const profile=makeYearProfile();
+    // Rok 2022 začíná pro všechny pracovníky s nulovými věžáky.
+    // Při ukládání celého profilu nesmí stará lokální cache vrátit historické základy.
+    if(Number(YEAR)===2022){
+        profile.vacationControl=normalizeVacationControl(profile.vacationControl);
+        profile.vacationControl.baseTowerByWorker=Object.fromEntries((profile.workers||[]).map(function(w){return [String(w.id),0];}));
+        vacationControl.baseTowerByWorker=Object.assign({},profile.vacationControl.baseTowerByWorker);
+        saveData(localYearKey("rozdelovnik_vacation_control",YEAR),vacationControl);
+    }
     await preserveCloudSpaCatalog(YEAR,profile);
     const r=await cloudFetch("app_settings?on_conflict=setting_key",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({setting_key:yearProfileKey(YEAR),setting_value:profile,updated_at:new Date().toISOString()})});
     if(!r.ok) throw new Error("Uložení ročního profilu: "+await r.text());
@@ -7707,6 +7715,10 @@ const INITIAL_TOWER_2026_BY_NAME={
     "Stoklasa":419,"Klumpler":437,"Jurasz":445,"Fajkus":449,"Náhlovský":456,"Kožušník":479
 };
 function ensureBaseTowerValues(){
+    if(Number(YEAR)===2022){
+        workers.forEach(function(w){vacationControl.baseTowerByWorker[String(w.id)]=0;});
+        return;
+    }
     workers.forEach(function(w){
         const id=String(w.id);
         if(vacationControl.baseTowerByWorker[id]==null && INITIAL_TOWER_2026_BY_NAME[w.name]!=null)
