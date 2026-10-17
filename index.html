@@ -1907,9 +1907,9 @@ async function preserveCloudSpaCatalog(year, profile){
 async function saveCurrentYearProfileToCloud(){
     if(!cloudSession) return;
     const profile=makeYearProfile();
-    // Rok 2022 začíná pro všechny pracovníky s nulovými věžáky.
+    // Roky 2022 a 2023 začínají pro všechny pracovníky s nulovými věžáky.
     // Při ukládání celého profilu nesmí stará lokální cache vrátit historické základy.
-    if(Number(YEAR)===2022){
+    if(Number(YEAR)===2022 || Number(YEAR)===2023){
         profile.vacationControl=normalizeVacationControl(profile.vacationControl);
         profile.vacationControl.baseTowerByWorker=Object.fromEntries((profile.workers||[]).map(function(w){return [String(w.id),0];}));
         vacationControl.baseTowerByWorker=Object.assign({},profile.vacationControl.baseTowerByWorker);
@@ -7715,7 +7715,7 @@ const INITIAL_TOWER_2026_BY_NAME={
     "Stoklasa":419,"Klumpler":437,"Jurasz":445,"Fajkus":449,"Náhlovský":456,"Kožušník":479
 };
 function ensureBaseTowerValues(){
-    if(Number(YEAR)===2022){
+    if(Number(YEAR)===2022 || Number(YEAR)===2023){
         workers.forEach(function(w){vacationControl.baseTowerByWorker[String(w.id)]=0;});
         return;
     }
