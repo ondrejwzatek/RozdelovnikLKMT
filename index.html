@@ -1075,6 +1075,8 @@ h1 {
 .vpc-round-head-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
 .vpc-close-round-btn{font-size:9px;font-weight:700;padding:3px 6px;border:1px solid #8aa3b8;border-radius:4px;background:#fff;cursor:pointer;white-space:nowrap}
 .vpc-close-round-btn:hover{background:#eef6fa}
+.vpc-close-round-btn.is-locked{background:#e5e7eb;color:#5b6470;border-color:#b8c0c8;cursor:pointer}
+.vpc-close-round-btn.is-locked:hover{background:#d7dce2}
 .vpc-round-status-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 9px;border:1px solid rgba(0,0,0,.18)}
 .vpc-round-status-dot.is-active{background:#35a853}
 .vpc-round-status-dot.is-inactive{background:#d94b4b}
@@ -7804,7 +7806,10 @@ function applyIncomingTowerPriority(profile, previousProfile, year){
     const marker=String(year-1)+":"+String(priority.closedAt||"");
     if(control.incomingTowerTransfer===marker) return profile;
     // Nikdy nepřepsat již zahájená kola cílového roku.
-    if(Object.keys(control.roundSnapshots||{}).length || control.incomingTowerTransfer) return profile;
+    if(Object.keys(control.roundSnapshots||{}).length) return profile;
+    // Nová uzávěrka předchozího roku smí aktualizovat dřívější převod,
+    // pokud v cílovém roce ještě nebylo uzavřeno žádné kolo.
+    if(control.incomingTowerTransfer && !String(control.incomingTowerTransfer).startsWith(String(year-1)+":")) return profile;
     const targetWorkers=Array.isArray(profile.workers)?profile.workers:[];
     const sourceWorkers=Array.isArray(previousProfile.workers)?previousProfile.workers:[];
     const sourceById=new Map(sourceWorkers.map(function(w){return [String(w.id),w];}));
@@ -7854,7 +7859,18 @@ function getRoundOrder(roundNumber){
 function closeVacationRound(roundNumber){
     if(!isVacationAdmin()) return;
     if(towerTransferEnabled()){
-        if(towerSnapshotRows(roundNumber)){alert("Toto kolo je již uzavřené a uzamčené.");return;}
+        if(towerSnapshotRows(roundNumber)){
+            const affected=[];
+            for(let r=roundNumber;r<=4;r++) if(towerSnapshotRows(r)) affected.push(r);
+            const warning="Odemknout "+roundNumber+". kolo?\\n\\nZruší se uzávěrky kol "+affected.join(", ")+". Po opravě bude nutné kola postupně znovu uzavřít."+(vacationControl.prioritySnapshot?"\\n\\nPozor: již přenesená priorita následujícího roku zůstane do nového uzavření 4. kola beze změny. Pokud jsou v následujícím roce uzavřená kola, jejich výsledky se automaticky nepřepíší.":"");
+            if(!confirm(warning)) return;
+            for(let r=roundNumber;r<=4;r++) delete vacationControl.roundSnapshots[String(r)];
+            vacationControl.currentRound=roundNumber-1;
+            vacationControl.prioritySnapshot=null;
+            queueVacationControlCloudSave();
+            renderVacationPlanningControl();
+            return;
+        }
         if(roundNumber>1 && !towerSnapshotRows(roundNumber-1)){alert("Nejprve uzavřete předchozí kolo.");return;}
     }
     const nextYear=YEAR+1;
@@ -8052,7 +8068,7 @@ function renderVacationPlanningControl() {
         const headRight=document.createElement("span"); headRight.className="vpc-round-head-actions";
         const small=document.createElement("small"); small.textContent=startKey?formatShortDateKey(startKey):"—"; headRight.appendChild(small);
         const statusDot=document.createElement("span"); statusDot.className="vpc-round-status-dot "+(isActiveRound?"is-active":"is-inactive"); statusDot.title=isActiveRound?"Aktivní kolo":"Neaktivní / uzavřené kolo"; headRight.appendChild(statusDot);
-        if(admin){ const closeBtn=document.createElement("button"); closeBtn.type="button"; closeBtn.className="vpc-close-round-btn"; closeBtn.textContent=def.num<4?("Uzavřít "+def.num+". kolo"):("Uzavřít prioritu pro "+(YEAR+1)); closeBtn.disabled=!!(towerTransferEnabled() && (existingSnap || isFutureRound)); closeBtn.title=existingSnap?"Kolo je uzamčeno":isFutureRound?"Nejprve uzavřete předchozí kolo":""; closeBtn.addEventListener("click",function(){closeVacationRound(def.num);}); headRight.appendChild(closeBtn); }
+        if(admin){ const closeBtn=document.createElement("button"); closeBtn.type="button"; closeBtn.className="vpc-close-round-btn"; closeBtn.textContent=(towerTransferEnabled() && existingSnap)?("Odemknout "+def.num+". kolo"):(def.num<4?("Uzavřít "+def.num+". kolo"):("Uzavřít prioritu pro "+(YEAR+1))); closeBtn.disabled=!!(towerTransferEnabled() && !existingSnap && isFutureRound); closeBtn.title=existingSnap?"Kliknutím odemknete toto i všechna následující kola":isFutureRound?"Nejprve uzavřete předchozí kolo":""; if(towerTransferEnabled() && existingSnap) closeBtn.classList.add("is-locked"); closeBtn.addEventListener("click",function(){closeVacationRound(def.num);}); headRight.appendChild(closeBtn); }
         head.appendChild(headRight); card.appendChild(head);
         const table=document.createElement("table"); table.className="vpc-order-table";
         table.classList.add("vpc-round-tower-table");
