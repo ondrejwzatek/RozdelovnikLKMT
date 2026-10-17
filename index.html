@@ -7736,8 +7736,8 @@ function vacationTowerTotals(ignoreFrozenFajkusRh){
                 const e=entries.find(function(x){return x.code.toLocaleLowerCase("cs")===code.toLocaleLowerCase("cs");});
                 if(!e) continue;
                 const id=String(e.worker.id); if(!out[id]) out[id]={D:0,RH:0,total:0};
-                if(e.assignmentType==="D" || e.assignmentType==="DSv") out[id].D += Number(vacationAutoKoef(date,"D"))||0;
-                else if(e.assignmentType==="RH") { const k=vacationAutoKoef(date,"RH"); if(k!=="X") out[id].RH += Number(k)||0; }
+                if(e.assignmentType==="D" || e.assignmentType==="DSv") out[id].D += Number(vacationWeekKoef(date,"D"))||0;
+                else if(e.assignmentType==="RH") { const k=vacationWeekKoef(date,"RH"); if(k!=="X") out[id].RH += Number(k)||0; }
             }
         });
     }
@@ -8114,6 +8114,49 @@ function vacationAutoKoef(date, type) {
     const penultimateMonday=addDaysLocal(lastMonday,-7);
     if(m>=penultimateMonday) value=(type==='D'?2:3);
     return value;
+}
+/* Ručně zadané týdenní koeficienty D a RH, oddělené pro každý rok.
+   Staré týdny bez uložené hodnoty si ponechávají dosavadní výpočet. */
+function vacationWeekKoef(date,type){
+    const month=findVacationMonthForDate(date);
+    if(month!==null){
+        const weeks=getMonthWeeks(month);
+        const keyDate=makeDateKey(date);
+        const wi=weeks.findIndex(function(week){return week.some(function(d){return makeDateKey(d)===keyDate;});});
+        if(wi>=0){
+            const key=vacationWeekKey(month,wi)+"_"+type;
+            if(Object.prototype.hasOwnProperty.call(vacationKoef,key)){
+                const value=vacationKoef[key];
+                if(type==="RH" && String(value).toUpperCase()==="X") return "X";
+                if(value!=="" && Number.isFinite(Number(value)) && Number(value)>=0) return Number(value);
+            }
+        }
+    }
+    return vacationAutoKoef(date,type);
+}
+function makeVacationKoefInput(month,wi,type,refDate){
+    const input=document.createElement("input");
+    input.className="vacation-vv";
+    input.type="text";
+    input.inputMode="decimal";
+    input.style.width="3.5em";
+    const key=vacationWeekKey(month,wi)+"_"+type;
+    input.value=String(vacationWeekKoef(refDate,type));
+    input.title="Koeficient "+type+" – ruční úprava pro tento týden"+(type==="RH"?" (lze zadat X)":"");
+    input.setAttribute("aria-label","Koeficient "+type+" – "+monthNames[month]+", týden "+(wi+1));
+    input.addEventListener("change",function(){
+        const raw=input.value.trim().replace(",",".");
+        if((type==="RH" && raw.toUpperCase()==="X")) vacationKoef[key]="X";
+        else if(raw!=="" && Number.isFinite(Number(raw)) && Number(raw)>=0) vacationKoef[key]=Number(raw);
+        else { alert("Zadejte nezáporné číslo"+(type==="RH"?" nebo X":"")+"."); input.value=String(vacationWeekKoef(refDate,type)); return; }
+        saveData(localYearKey("rozdelovnik_vacation_koef",YEAR),vacationKoef);
+        queueVacationWeekCloudSave();
+        renderVacationPlanningControl();
+    });
+    const box=document.createElement("span");
+    box.appendChild(document.createTextNode(type+" "));
+    box.appendChild(input);
+    return box;
 }
 function makeVacationKoefBox(label, value) {
     const box=document.createElement("div"); box.className="vacation-koef-box";
@@ -8585,10 +8628,10 @@ function renderVacationMonth(month, table) {
                 cell.appendChild(input);
             } else if(pos===2) {
                 const refDate=week.find(function(d){return d.getDay()>=1&&d.getDay()<=5;}) || week[0];
-                cell.appendChild(makeVacationKoefBox("D",vacationAutoKoef(refDate,"D")));
+                cell.appendChild(makeVacationKoefInput(month,wi,"D",refDate));
             } else if(pos===3) {
                 const refDate=week.find(function(d){return d.getDay()>=1&&d.getDay()<=5;}) || week[0];
-                cell.appendChild(makeVacationKoefBox("RH",vacationAutoKoef(refDate,"RH")));
+                cell.appendChild(makeVacationKoefInput(month,wi,"RH",refDate));
             } else if(pos===4) {
                 cell.colSpan=Math.max(1, week.length-4);
                 const input=document.createElement("input");
