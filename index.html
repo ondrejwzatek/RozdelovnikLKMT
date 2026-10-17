@@ -1087,12 +1087,10 @@ h1 {
 .vpc-round-tower-table th:nth-child(5),.vpc-round-tower-table td:nth-child(5){width:37px!important}
 .vpc-round-tower-table .vpc-tower-value{font-weight:normal;background:transparent;color:inherit;font-variant-numeric:normal}
 .vpc-close-round-btn:disabled{opacity:.45;cursor:not-allowed}
-#lkmtPreviewBanner{position:sticky;top:0;z-index:13000;padding:8px 16px;text-align:center;background:#fff3cd;border-bottom:2px solid #c68c19;font-size:12px;font-weight:700}
 </style>
 </head>
 
 <body>
-<div id="lkmtPreviewBanner">LOKÁLNÍ TEST – změny se ukládají pouze v tomto prohlížeči; do Supabase se nezapisuje.</div>
 <div id="cloudLoginOverlay">
   <div class="cloud-login-card">
     <h2>Rozdělovník 2027</h2>
@@ -1598,24 +1596,6 @@ async function cloudRefreshSession() {
 
 async function cloudFetch(path, options) {
     options = options || {};
-    // LOKÁLNÍ TEST: Supabase se čte, ale všechny zápisy zůstávají v tomto prohlížeči.
-    const method=String(options.method||"GET").toUpperCase();
-    const match=String(path).match(/^app_settings\?setting_key=eq\.([^&]+)/);
-    const profileKey=match?decodeURIComponent(match[1]):null;
-    if(method==="GET" && profileKey && /^year_profile_\d+$/.test(profileKey)){
-        const cached=localStorage.getItem("lkmt_preview_profile_"+profileKey);
-        if(cached) return new Response(JSON.stringify([{setting_value:JSON.parse(cached)}]),{status:200,headers:{"Content-Type":"application/json"}});
-    }
-    if(!["GET","HEAD"].includes(method)){
-        if(String(path).startsWith("app_settings?") && options.body){
-            try{
-                const body=JSON.parse(options.body);
-                if(body.setting_key && /^year_profile_\d+$/.test(body.setting_key) && body.setting_value)
-                    localStorage.setItem("lkmt_preview_profile_"+body.setting_key,JSON.stringify(body.setting_value));
-            }catch(e){console.error("Lokální ukládání profilu",e);}
-        }
-        return new Response("",{status:204});
-    }
     options.headers = cloudHeaders(options.headers);
     let r = await fetch(SUPABASE_URL + "/rest/v1/" + path, options);
     if (r.status === 401 && await cloudRefreshSession()) {
