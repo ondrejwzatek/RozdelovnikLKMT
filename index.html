@@ -1080,10 +1080,19 @@ h1 {
 .vpc-round-status-dot.is-inactive{background:#d94b4b}
 .vpc-round-head > span:first-child{min-width:0;line-height:1.15}
 .vpc-round-head-actions{flex-wrap:nowrap!important;align-self:flex-start}
+/* Lokální test 2023–2035: pět sloupců v kolech 1–4 */
+.vpc-round-tower-table th:nth-child(2),.vpc-round-tower-table td:nth-child(2){width:auto!important;min-width:0;padding-left:3px;padding-right:2px}
+.vpc-round-tower-table th:nth-child(3),.vpc-round-tower-table td:nth-child(3){width:48px!important;padding-left:1px;padding-right:1px}
+.vpc-round-tower-table th:nth-child(4),.vpc-round-tower-table td:nth-child(4){width:48px!important}
+.vpc-round-tower-table th:nth-child(5),.vpc-round-tower-table td:nth-child(5){width:37px!important}
+.vpc-round-tower-table .vpc-tower-value{font-weight:normal;background:transparent;color:inherit;font-variant-numeric:normal}
+.vpc-close-round-btn:disabled{opacity:.45;cursor:not-allowed}
+#lkmtPreviewBanner{position:sticky;top:0;z-index:13000;padding:8px 16px;text-align:center;background:#fff3cd;border-bottom:2px solid #c68c19;font-size:12px;font-weight:700}
 </style>
 </head>
 
 <body>
+<div id="lkmtPreviewBanner">LOKÁLNÍ TEST – změny se ukládají pouze v tomto prohlížeči; do Supabase se nezapisuje.</div>
 <div id="cloudLoginOverlay">
   <div class="cloud-login-card">
     <h2>Rozdělovník 2027</h2>
@@ -1589,6 +1598,24 @@ async function cloudRefreshSession() {
 
 async function cloudFetch(path, options) {
     options = options || {};
+    // LOKÁLNÍ TEST: Supabase se čte, ale všechny zápisy zůstávají v tomto prohlížeči.
+    const method=String(options.method||"GET").toUpperCase();
+    const match=String(path).match(/^app_settings\?setting_key=eq\.([^&]+)/);
+    const profileKey=match?decodeURIComponent(match[1]):null;
+    if(method==="GET" && profileKey && /^year_profile_\d+$/.test(profileKey)){
+        const cached=localStorage.getItem("lkmt_preview_profile_"+profileKey);
+        if(cached) return new Response(JSON.stringify([{setting_value:JSON.parse(cached)}]),{status:200,headers:{"Content-Type":"application/json"}});
+    }
+    if(!["GET","HEAD"].includes(method)){
+        if(String(path).startsWith("app_settings?") && options.body){
+            try{
+                const body=JSON.parse(options.body);
+                if(body.setting_key && /^year_profile_\d+$/.test(body.setting_key) && body.setting_value)
+                    localStorage.setItem("lkmt_preview_profile_"+body.setting_key,JSON.stringify(body.setting_value));
+            }catch(e){console.error("Lokální ukládání profilu",e);}
+        }
+        return new Response("",{status:204});
+    }
     options.headers = cloudHeaders(options.headers);
     let r = await fetch(SUPABASE_URL + "/rest/v1/" + path, options);
     if (r.status === 401 && await cloudRefreshSession()) {
@@ -1992,7 +2019,7 @@ async function loadYearProfileFromCloud(year){
     const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(yearProfileKey(year))+"&select=setting_value",{method:"GET"});
     if(!r.ok) throw new Error("Načtení ročního profilu: "+await r.text());
     const rows=await r.json();
-    if(rows.length && rows[0].setting_value){ applyYearProfile(rows[0].setting_value); return true; }
+    if(rows.length && rows[0].setting_value){ applyYearProfile(rows[0].setting_value); await importIncomingTowerPriority(year); return true; }
     return false;
 }
 async function switchDisplayedYear(newYear){
@@ -2024,6 +2051,7 @@ async function switchDisplayedYear(newYear){
     } else {
         /* existující roční profil už obsahuje (nebo po migraci dostane) vlastní pracovníky */
     }
+    try{await importIncomingTowerPriority(YEAR);}catch(e){console.error("Převod věžáků",e);}
     /* Legenda je od v88 samostatná pro každý rok. 2026 a 2027 se při prvním
        otevření založí z původní společné legendy, ostatní roky jsou prázdné. */
     try{
@@ -7770,6 +7798,74 @@ function stableTowerOrder(rows, previousOrder){
     const prev={}; (previousOrder||[]).forEach(function(id,i){prev[String(id)]=i;});
     return rows.slice().sort(function(a,b){return a.total-b.total || ((prev[a.workerId]??9999)-(prev[b.workerId]??9999)) || a.name.localeCompare(b.name,"cs");}).map(function(x){return x.workerId;});
 }
+function towerTransferEnabled(){return YEAR>=2023 && YEAR<=2035;}
+function towerSnapshotRows(roundNumber){
+    const snap=vacationControl.roundSnapshots[String(roundNumber)];
+    return snap&&Array.isArray(snap.rows)?snap.rows:null;
+}
+function towerRoundDisplayRows(roundNumber){
+    const frozen=towerSnapshotRows(roundNumber);
+    if(frozen) return frozen;
+    let lastClosed=0;
+    for(let r=1;r<=4;r++){if(towerSnapshotRows(r))lastClosed=r;else break;}
+    // Budoucí kola pouze ukazují poslední uzavřenou hodnotu.
+    if(roundNumber>lastClosed+1 && lastClosed) return towerSnapshotRows(lastClosed);
+    if(roundNumber>1 && !lastClosed) return currentTowerRows().map(function(row){
+        return Object.assign({},row,{total:Number(row.base)||0});
+    });
+    return currentTowerRows();
+}
+function applyIncomingTowerPriority(profile, previousProfile, year){
+    if(year<2024 || year>2035 || !profile || !previousProfile) return profile;
+    const previousControl=previousProfile.vacationControl||{};
+    const priority=previousControl.prioritySnapshot;
+    if(!priority || Number(priority.year)!==year || !Array.isArray(priority.rows) || !Array.isArray(priority.order)) return profile;
+    const control=normalizeVacationControl(profile.vacationControl||{});
+    const marker=String(year-1)+":"+String(priority.closedAt||"");
+    if(control.incomingTowerTransfer===marker) return profile;
+    // Nikdy nepřepsat již zahájená kola cílového roku.
+    if(Object.keys(control.roundSnapshots||{}).length || control.incomingTowerTransfer) return profile;
+    const targetWorkers=Array.isArray(profile.workers)?profile.workers:[];
+    const sourceWorkers=Array.isArray(previousProfile.workers)?previousProfile.workers:[];
+    const sourceById=new Map(sourceWorkers.map(function(w){return [String(w.id),w];}));
+    const targetById=new Map(targetWorkers.map(function(w){return [String(w.id),w];}));
+    const targetByName=new Map(targetWorkers.map(function(w){return [String(w.name||"").trim().toLocaleLowerCase("cs"),w];}));
+    const targetForSource=function(sourceId){
+        if(targetById.has(String(sourceId))) return targetById.get(String(sourceId));
+        const src=sourceById.get(String(sourceId));
+        return src?targetByName.get(String(src.name||"").trim().toLocaleLowerCase("cs")):null;
+    };
+    const incoming={};
+    priority.rows.forEach(function(row){
+        const target=targetForSource(row.workerId);
+        if(target) incoming[String(target.id)]=Number(row.total)||0;
+    });
+    // Pro nově přijaté pracovníky ponechat případnou vlastní výchozí hodnotu.
+    control.baseTowerByWorker=Object.assign({},control.baseTowerByWorker||{},incoming);
+    const order=[];
+    priority.order.forEach(function(id){const w=targetForSource(id);if(w&&!order.includes(String(w.id)))order.push(String(w.id));});
+    targetWorkers.forEach(function(w){if(!order.includes(String(w.id)))order.push(String(w.id));});
+    control.round1Order=order;
+    control.incomingTowerTransfer=marker;
+    profile.vacationControl=control;
+    return profile;
+}
+async function importIncomingTowerPriority(year){
+    if(year<2024 || year>2035 || !cloudSession) return;
+    const previousKey=yearProfileKey(year-1);
+    const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(previousKey)+"&select=setting_value",{method:"GET"});
+    if(!r.ok) return;
+    const rows=await r.json();
+    if(!rows.length || !rows[0].setting_value) return;
+    const before=vacationControl.incomingTowerTransfer;
+    const current=makeYearProfile();
+    applyIncomingTowerPriority(current,rows[0].setting_value,year);
+    if(current.vacationControl.incomingTowerTransfer!==before){
+        vacationControl=current.vacationControl;
+        saveData(localYearKey("rozdelovnik_vacation_control",year),vacationControl);
+        await saveCurrentYearProfileToCloud();
+    }
+}
 function getRoundOrder(roundNumber){
     if(roundNumber===1) return vacationControl.round1Order||[];
     const prev=vacationControl.roundSnapshots[String(roundNumber-1)];
@@ -7777,6 +7873,10 @@ function getRoundOrder(roundNumber){
 }
 function closeVacationRound(roundNumber){
     if(!isVacationAdmin()) return;
+    if(towerTransferEnabled()){
+        if(towerSnapshotRows(roundNumber)){alert("Toto kolo je již uzavřené a uzamčené.");return;}
+        if(roundNumber>1 && !towerSnapshotRows(roundNumber-1)){alert("Nejprve uzavřete předchozí kolo.");return;}
+    }
     const nextYear=YEAR+1;
     let msg=roundNumber<4 ? "Opravdu uzavřít "+roundNumber+". kolo?\\n\\nAktuální věžáky se uloží jako snapshot a vytvoří pořadí "+(roundNumber+1)+". kola." : "Opravdu uzavřít prioritu pro "+nextYear+"?\\n\\nAktuální věžáky se uloží jako konečný snapshot a vytvoří prioritu pro 1. kolo roku "+nextYear+".";
     if(vacationControl.roundSnapshots[String(roundNumber)]) msg += "\n\nPOZOR: Toto kolo už je uzavřené. Pokud jste po uzavření provedl(a) změny, nová uzávěrka přepíše původní snapshot a znovu vytvoří pořadí následujícího kola.";
@@ -7799,7 +7899,12 @@ function ensureRound1Order() {
     const activeIds=workers.map(function(w){return String(w.id);});
     const rows=workers.map(function(w){return {workerId:String(w.id),name:w.name,total:Number(vacationControl.baseTowerByWorker[String(w.id)])||0};});
     const known=rows.some(function(x){return x.total>0;});
-    if(known) vacationControl.round1Order=stableTowerOrder(rows,vacationControl.round1Order);
+    if(vacationControl.incomingTowerTransfer || vacationControl.roundSnapshots["1"]){
+        const kept=(vacationControl.round1Order||[]).filter(function(id){return activeIds.includes(String(id));});
+        activeIds.forEach(function(id){if(!kept.includes(id))kept.push(id);});
+        vacationControl.round1Order=kept;
+    }
+    else if(known) vacationControl.round1Order=stableTowerOrder(rows,vacationControl.round1Order);
     else {
         const kept=(vacationControl.round1Order||[]).filter(function(id){return activeIds.includes(String(id));});
         activeIds.forEach(function(id){if(!kept.includes(id)) kept.push(id);}); vacationControl.round1Order=kept;
@@ -7967,10 +8072,13 @@ function renderVacationPlanningControl() {
         const headRight=document.createElement("span"); headRight.className="vpc-round-head-actions";
         const small=document.createElement("small"); small.textContent=startKey?formatShortDateKey(startKey):"—"; headRight.appendChild(small);
         const statusDot=document.createElement("span"); statusDot.className="vpc-round-status-dot "+(isActiveRound?"is-active":"is-inactive"); statusDot.title=isActiveRound?"Aktivní kolo":"Neaktivní / uzavřené kolo"; headRight.appendChild(statusDot);
-        if(admin){ const closeBtn=document.createElement("button"); closeBtn.type="button"; closeBtn.className="vpc-close-round-btn"; closeBtn.textContent=def.num<4?("Uzavřít "+def.num+". kolo"):("Uzavřít prioritu pro "+(YEAR+1)); closeBtn.addEventListener("click",function(){closeVacationRound(def.num);}); headRight.appendChild(closeBtn); }
+        if(admin){ const closeBtn=document.createElement("button"); closeBtn.type="button"; closeBtn.className="vpc-close-round-btn"; closeBtn.textContent=def.num<4?("Uzavřít "+def.num+". kolo"):("Uzavřít prioritu pro "+(YEAR+1)); closeBtn.disabled=!!(towerTransferEnabled() && (existingSnap || isFutureRound)); closeBtn.title=existingSnap?"Kolo je uzamčeno":isFutureRound?"Nejprve uzavřete předchozí kolo":""; closeBtn.addEventListener("click",function(){closeVacationRound(def.num);}); headRight.appendChild(closeBtn); }
         head.appendChild(headRight); card.appendChild(head);
         const table=document.createElement("table"); table.className="vpc-order-table";
-        table.innerHTML="<thead><tr><th>#</th><th>Pracovník</th><th>Datum</th><th>Zbývá</th></tr></thead>";
+        table.classList.add("vpc-round-tower-table");
+        table.innerHTML="<thead><tr><th>#</th><th>Pracovník</th><th>Věžáky</th><th>Datum</th><th>Zbývá</th></tr></thead>";
+        const towerValues=towerRoundDisplayRows(def.num);
+        const towerById={};towerValues.forEach(function(row){towerById[String(row.workerId)]=Number(row.total)||0;});
         const tb=document.createElement("tbody");
         const roundOrder=getRoundOrder(def.num);
         roundOrder.forEach(function(workerId,index){
@@ -8000,6 +8108,11 @@ function renderVacationPlanningControl() {
                 });
             } else if(isFutureRound) name.classList.add("vpc-round-empty");
             tr.appendChild(name);
+            const tower=document.createElement("td");
+            tower.className="vpc-tower-value";
+            tower.textContent=Object.prototype.hasOwnProperty.call(towerById,String(workerId))?String(towerById[String(workerId)]):"—";
+            tower.title=existingSnap?"Uzamčený stav po uzavření kola":"Průběžný stav věžáků";
+            tr.appendChild(tower);
             const day=document.createElement("td");
             day.textContent=startKey?formatShortDateKey(addCalendarDays(startKey,index)):"—";
             if(isFutureRound) day.classList.add("vpc-round-empty");
