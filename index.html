@@ -1317,6 +1317,9 @@ h1 {
     <div class="toolbar sticky-page-header toolbar-centered">
         <h2>Plánování dovolených</h2>
         <div class="toolbar-buttons">
+            <button type="button" class="button" id="vacationPrevYearBtn" onclick="changeVacationViewYear(-1)" aria-label="Předchozí rok">‹</button>
+            <select id="vacationYearSelect" class="button" onchange="selectVacationViewYear(this.value)" aria-label="Rok plánování dovolených"></select>
+            <button type="button" class="button" id="vacationNextYearBtn" onclick="changeVacationViewYear(1)" aria-label="Následující rok">›</button>
             <button type="button" class="button vacation-manual-save" id="saveVacationManualBtn" onclick="saveVacationManualChanges()" disabled>Uložit změny</button>
             <button type="button" class="button vacation-manual-discard" id="discardVacationManualBtn" onclick="discardVacationManualChanges()" disabled>Zahodit změny</button>
             <button type="button" class="button" id="resyncVacationYearBtn" onclick="resyncVacationYearToSchedule()" title="Doplní chybějící D/RH/Ang/D svátek z Plánování dovolených do měsíčních rozdělovníků. Existující směny nepřepisuje.">Synchronizovat rok</button>
@@ -2051,6 +2054,7 @@ async function switchDisplayedYear(newYear){
     }
     await loadRound0CloudForYear(YEAR);
     syncYearStartControls(); renderMonths();
+    if(typeof refreshVacationYearControls==="function") refreshVacationYearControls();
     const workersTitle=document.getElementById("workersPageTitle");
     if(workersTitle) workersTitle.textContent="Správa pracovníků – "+YEAR;
     if(document.getElementById("workersPage") && !document.getElementById("workersPage").classList.contains("hidden")) renderWorkersManagement();
@@ -4696,6 +4700,7 @@ function showWorkersPage() {
 
 function renderWorkersManagement() {
     refreshWorkersYearControls();
+    if(typeof refreshVacationYearControls==="function") refreshVacationYearControls();
     const workersTitle=document.getElementById("workersPageTitle");
     if(workersTitle) workersTitle.textContent="Správa pracovníků – "+YEAR;
     const copyBtn=document.getElementById("copyWorkersNextYearBtn");
@@ -8585,7 +8590,44 @@ function discardVacationManualChanges() {
     renderVacationPlanning();
 }
 
+function refreshVacationYearControls(){
+    const select=document.getElementById("vacationYearSelect");
+    if(!select) return;
+    select.innerHTML="";
+    for(let year=2020;year<=2035;year++){
+        const option=document.createElement("option");
+        option.value=String(year);
+        option.textContent=String(year);
+        select.appendChild(option);
+    }
+    select.value=String(YEAR);
+    document.getElementById("vacationPrevYearBtn").disabled=YEAR<=2020;
+    document.getElementById("vacationNextYearBtn").disabled=YEAR>=2035;
+}
+async function selectVacationViewYear(year){
+    const target=Math.max(2020,Math.min(2035,Number(year)||YEAR));
+    if(target!==YEAR){
+        if(Object.keys(vacationManualChanges||{}).length){
+            alert("Nejdříve uložte nebo zahoďte rozpracované změny v Plánování dovolených.");
+            refreshVacationYearControls();
+            return;
+        }
+        await switchDisplayedYear(target);
+        if(target!==YEAR){ refreshVacationYearControls(); return; }
+        const syncBtn=document.getElementById("resyncVacationYearBtn");
+        if(syncBtn) syncBtn.textContent="Synchronizovat "+YEAR;
+        const restoreOtBtn=document.getElementById("restoreOvertime2026Btn");
+        if(restoreOtBtn) restoreOtBtn.style.display=(isVacationAdmin() && YEAR===2026)?"":"none";
+        renderVacationPlanning();
+    }
+    refreshVacationYearControls();
+}
+function changeVacationViewYear(delta){
+    return selectVacationViewYear(YEAR+Number(delta));
+}
+
 function showVacationPage() {
+    refreshVacationYearControls();
     currentMonth=null;
     const syncBtn=document.getElementById("resyncVacationYearBtn");
     if(syncBtn){ syncBtn.style.display=isVacationAdmin()?"":"none"; syncBtn.textContent="Synchronizovat "+YEAR; }
