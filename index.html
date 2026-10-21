@@ -8315,18 +8315,45 @@ function renderVacationPlanningControl() {
                         await loadRound0EditorLock(round0ModalYear);
                         if(round0EditorLocked)throw new Error("0. kolo bylo mezitím uzamčeno. Změny nebyly uloženy.");
                         if(Number(YEAR)!==round0ModalYear)throw new Error("Rok se během úpravy změnil.");
-                        if(Object.keys(vacationManualChanges).length){
-                            const saved=await saveVacationManualChanges();
-                            if(saved!==true)throw new Error("Zápis iniciál nebyl dokončen. Požadavek nebyl uložen.");
+                        // Jeden databázový požadavek atomicky uloží iniciály, směny a požadavky.
+                        if(lkmtVacationCloudStateUncertain)throw new Error("Obnovte stránku (F5) před dalším ukládáním.");
+                        if(!cloudSession || !cloudVacationPlanReady || !cloudScheduleReady)
+                            throw new Error("Cloudový plán není připraven. Obnovte stránku.");
+                        const entries=getVacationCodeEntries();
+                        const pending=Object.values(vacationManualChanges);
+                        const changes=pending.map(function(ch){
+                            const oldEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.original||"").toLocaleLowerCase("cs"));
+                            const newEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.current||"").toLocaleLowerCase("cs"));
+                            return {date:ch.date,row:Number(ch.row)+1,
+                                original:String(ch.original||""),current:String(ch.current||""),
+                                old_worker_id:oldEntry?String(oldEntry.worker.id):null,
+                                new_worker_id:newEntry?String(newEntry.worker.id):null,
+                                assignment:newEntry?newEntry.assignmentType:null};
+                        });
+                        const rpc=await cloudFetch("rpc/lkmt_save_round0_atomic",{
+                            method:"POST",headers:{"Content-Type":"application/json"},
+                            body:JSON.stringify({p_year:round0ModalYear,p_worker_id:String(w.id),p_requests:activeList,p_changes:changes})
+                        });
+                        if(!rpc.ok)throw new Error("Transakční uložení selhalo: "+await rpc.text());
+                        for(const ch of pending){
+                            const date=parseLocalDate(ch.date);
+                            const oldEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.original||"").toLocaleLowerCase("cs"));
+                            const newEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.current||"").toLocaleLowerCase("cs"));
+                            if(oldEntry){
+                                const key=makeWorkerKey(date,oldEntry.worker.id);
+                                if(schedule[key]===findLegendIdByType(oldEntry.assignmentType))delete schedule[key];
+                            }
+                            if(newEntry){
+                                const legendId=findLegendIdByType(newEntry.assignmentType);
+                                if(legendId)schedule[makeWorkerKey(date,newEntry.worker.id)]=legendId;
+                            }
                         }
-                        try{
-                            await saveRound0WorkerRecord(round0ModalYear,w.id,activeList);
-                        }catch(recordError){
-                            // Iniciály již mohou být v cloudu; nedovolíme další zápis
-                            // nad nejasným stavem, dokud editor nenačte čerstvá data.
-                            lkmtVacationCloudStateUncertain=true;
-                            throw new Error("Požadavek se nepodařilo uložit, přestože iniciály už mohly být zapsány. Obnovte stránku (F5) a zkontrolujte plán. Detail: "+(recordError&&recordError.message?recordError.message:String(recordError)));
-                        }
+                        vacationManualChanges={};
+                        saveData(localYearKey("rozdelovnik_vacation_plan",YEAR),vacationPlan);
+                        saveData("rozdelovnik_schedule",schedule);
+                        updateVacationManualButtons();
+                        renderVacationPlanningControl();
+                        setCloudStatus("Online • uloženo");
                     }catch(err){
                         vacationPlan=backupPlan;
                         vacationManualChanges=backupChanges;
