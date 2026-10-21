@@ -2025,6 +2025,7 @@ async function switchDisplayedYear(newYear){
     newYear=Math.max(2000,Math.min(2100,Number(newYear)||YEAR));
     if(newYear===YEAR) return;
     try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
+
     cloudHydrationComplete=false;
     /* Kopie pracovníků slouží jako výchozí stav pouze při založení roku,
        který ještě vlastní profil nemá. Jakmile profil existuje, načte se jeho
@@ -2036,6 +2037,7 @@ async function switchDisplayedYear(newYear){
     loadVacationPlanLocalForYear(YEAR);
     // Lázeňské přidělení pracovníků se načítá samostatně pro právě zvolený rok.
     await loadSpaRequestsCloudForYear(YEAR);
+
     let loaded=false;
     try{ loaded=await loadYearProfileFromCloud(YEAR); }
     catch(e){
@@ -2044,6 +2046,7 @@ async function switchDisplayedYear(newYear){
         alert("Roční profil "+YEAR+" se nepodařilo načíst. Nebude nahrazen lokálními daty.");
         return;
     }
+
     if(!loaded){
         applyYearProfile({year:YEAR,workers:workersFromPreviousView,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{},annualStatisticsMonths:{},spaCatalog:[]});
         try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
@@ -2051,22 +2054,27 @@ async function switchDisplayedYear(newYear){
         /* existující roční profil už obsahuje (nebo po migraci dostane) vlastní pracovníky */
     }
     try{await importIncomingTowerPriority(YEAR);}catch(e){console.error("Převod věžáků",e);}
+
     /* Legenda je od v88 samostatná pro každý rok. 2026 a 2027 se při prvním
        otevření založí z původní společné legendy, ostatní roky jsou prázdné. */
     try{
         legend=await readAnnualLegend(YEAR,true);
         localStorage.setItem("rozdelovnik_legend",JSON.stringify(legend));
     }catch(e){ console.error(e); setCloudStatus("Chyba načítání legendy "+YEAR); }
+
     /* Produkce: po změně rozdělovníkového roku znovu sestavíme schedule přes
        hranice a legendu právě zvoleného roku. */
     if(cloudSession){
-        try{ await loadScheduleFromCloud(); }catch(e){ console.error(e); setCloudStatus("Chyba načítání měsíčního rozdělovníku"); }
+        try{ await loadScheduleFromCloud(true); }catch(e){ console.error(e); setCloudStatus("Chyba načítání měsíčního rozdělovníku"); }
     }
+
     // Teprve teď mapujeme vacation_plan podle období právě zvoleného roku.
     if(cloudSession){
-        try{ await loadVacationPlanFromCloud(); }catch(e){ console.error(e); setCloudStatus("Chyba načítání plánu dovolených"); }
+        try{ await loadVacationPlanFromCloud(true); }catch(e){ console.error(e); setCloudStatus("Chyba načítání plánu dovolených"); }
     }
+
     await loadRound0CloudForYear(YEAR);
+
     syncYearStartControls(); renderMonths();
     if(typeof refreshVacationYearControls==="function") refreshVacationYearControls();
     const workersTitle=document.getElementById("workersPageTitle");
@@ -2074,6 +2082,9 @@ async function switchDisplayedYear(newYear){
     if(document.getElementById("workersPage") && !document.getElementById("workersPage").classList.contains("hidden")) renderWorkersManagement();
     if(typeof renderVacationPlanningPage==="function" && document.getElementById("vacationPlanningPage") && !document.getElementById("vacationPlanningPage").classList.contains("hidden")) renderVacationPlanningPage();    if(document.getElementById("spaInfoPage") && !document.getElementById("spaInfoPage").classList.contains("hidden")) renderSpaInfoPage();
     cloudHydrationComplete=true;
+
+
+
 }
 async function loadPeriodsFromCloud() {
     setCloudStatus("Načítám období…");
@@ -2272,9 +2283,16 @@ function loadVacationPlanLocalForYear(year) {
     return vacationPlan;
 }
 
-async function loadVacationPlanFromCloud() {
+async function loadVacationPlanFromCloud(scopedYearOnly) {
     setCloudStatus("Načítám plán dovolených…");
-    const rows = await loadAllVacationPlanRows("*");
+    let rows;
+    if(scopedYearOnly){
+        recalculateMonthPeriods();
+        const first=getPeriod(0), last=getPeriod(11);
+        rows=await loadScopedCloudRows("vacation_plan","plan_date.asc,row_number.asc",first.from,last.to);
+    }else{
+        rows=await loadAllVacationPlanRows("*");
+    }
     if (rows.length) {
         vacationPlan = {};
         rows.forEach(function(row) {
@@ -2286,8 +2304,11 @@ async function loadVacationPlanFromCloud() {
             vacationPlan[vacationCellKey(month, zeroRow, date)] = String(row.code || "");
         });
         saveData(localYearKey("rozdelovnik_vacation_plan",YEAR), vacationPlan);
-    } else {
+    } else if(!scopedYearOnly) {
         await saveVacationPlanToCloudNow(true);
+    } else {
+        vacationPlan={};
+        saveData(localYearKey("rozdelovnik_vacation_plan",YEAR),vacationPlan);
     }
     cloudVacationPlanReady = true;
     if (typeof renderVacationPlanning === "function" && document.getElementById("vacationPage") && !document.getElementById("vacationPage").classList.contains("hidden")) renderVacationPlanning();
@@ -2498,10 +2519,26 @@ async function loadAllMonthlyScheduleRows(selectExpr) {
     return all;
 }
 
-async function loadScheduleFromCloud() {
-    setCloudStatus("Načítám měsíční rozdělovník…");
-    const rows = await loadAllMonthlyScheduleRows("*");
+// TEST V7.4.1: read only rows in the distribution-year window.
+async function loadScopedCloudRows(table, order, rangeStart, rangeEnd, selectExpr) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rangeStart) || !/^\d{4}-\d{2}-\d{2}$/.test(rangeEnd) || rangeStart > rangeEnd) {
+        throw new Error("Neplatný rozsah dat pro rok "+YEAR);
+    }
+    const all=[], pageSize=1000;
+    for(let offset=0;;offset+=pageSize){
+        const path=table+"?select="+encodeURIComponent(selectExpr||"*")+"&plan_date=gte."+rangeStart+"&plan_date=lte."+rangeEnd+
+            "&order="+order+"&offset="+offset+"&limit="+pageSize;
+        const response=await cloudFetch(path,{method:"GET"});
+        if(!response.ok) throw new Error("Načtení "+table+": "+await response.text());
+        const batch=await response.json();
+        all.push(...batch);
+        if(batch.length<pageSize) break;
+    }
+    return all;
+}
 
+async function loadScheduleFromCloud(scopedYearOnly) {
+    setCloudStatus("Načítám měsíční rozdělovník…");
     /* Produkce: schedule v paměti drží pouze právě otevřený ROZDĚLOVNÍKOVÝ rok,
        nikoli všechny kalendářní roky smíchané přes jednu legendu. Hranice bereme
        z periodSetup: první den 1. období až poslední den 12. období. Přidáváme
@@ -2518,6 +2555,10 @@ async function loadScheduleFromCloud() {
         previousDate.setDate(previousDate.getDate() - 1);
         previousDateKey = dateToInput(previousDate);
     }
+
+    const rows = scopedYearOnly
+        ? await loadScopedCloudRows("monthly_schedule","plan_date.asc,worker_id.asc",previousDateKey||rangeStart,rangeEnd)
+        : await loadAllMonthlyScheduleRows("*");
 
     let previousLegend = [];
     if (previousDateKey && cloudSession) {
@@ -2566,7 +2607,9 @@ async function saveScheduleToCloudNow(force) {
             /* v56: force-save je skutečná synchronizace, ne pouze upsert.
                Řádek, který v lokálním schedule už neexistuje, musí být odstraněn
                i z monthly_schedule. To řeší obecné mazání (6, 19, SL-19...). */
-            let cloudRows = await loadAllMonthlyScheduleRows("id,plan_date,worker_id,assignment");
+            recalculateMonthPeriods();
+            const scopeFrom=getPeriod(0).from, scopeTo=getPeriod(11).to;
+            let cloudRows = await loadScopedCloudRows("monthly_schedule","plan_date.asc,worker_id.asc",scopeFrom,scopeTo,"id,plan_date,worker_id,assignment");
             const wanted = new Map();
             rows.forEach(function(row){ wanted.set(row.plan_date + "_" + row.worker_id, row.assignment); });
             for (const c of cloudRows) {
@@ -2578,8 +2621,8 @@ async function saveScheduleToCloudNow(force) {
                     if (!del.ok) throw new Error("Mazání staré směny: " + await del.text());
                 }
             }
-            cloudRows = await loadAllMonthlyScheduleRows("plan_date,worker_id,assignment");
-            for (const row of rows) {
+            cloudRows = await loadScopedCloudRows("monthly_schedule","plan_date.asc,worker_id.asc",scopeFrom,scopeTo,"plan_date,worker_id,assignment");
+            for (const row of rows.filter(function(r){return r.plan_date>=scopeFrom && r.plan_date<=scopeTo;})) {
                 const found = cloudRows.some(function(c) {
                     return String(c.plan_date) === row.plan_date && String(c.worker_id) === row.worker_id && String(c.assignment) === row.assignment;
                 });
@@ -2672,7 +2715,7 @@ async function initCloud() {
             if (!hasYearProfile) {
                 throw new Error("Rok "+YEAR+" nemá profil v app_settings. Pracovníky nelze načíst z globální tabulky workers. Založte rok kopírováním pracovníků z jiného roku.");
             }
-            loadVacationPlanLocalForYear(YEAR); await loadVacationPlanFromCloud(); await loadRound0CloudForYear(YEAR); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); cloudHydrationComplete=true; lkmtUpdateSignedInName(); } catch(e) { cloudHydrationComplete=false; console.error(e); setCloudStatus("Chyba připojení"); }
+            loadVacationPlanLocalForYear(YEAR); await loadVacationPlanFromCloud(true); await loadRound0CloudForYear(YEAR); await loadScheduleFromCloud(true); await loadVacationControlFromCloud(); cloudHydrationComplete=true; lkmtUpdateSignedInName(); } catch(e) { cloudHydrationComplete=false; console.error(e); setCloudStatus("Chyba připojení"); }
     }
 }
 
@@ -2689,9 +2732,9 @@ document.addEventListener("DOMContentLoaded", function() {
                 throw new Error("Rok "+YEAR+" nemá profil v app_settings. Pracovníky nelze načíst z globální tabulky workers. Založte rok kopírováním pracovníků z jiného roku.");
             }
             loadVacationPlanLocalForYear(YEAR);
-            await loadVacationPlanFromCloud();
+            await loadVacationPlanFromCloud(true);
             await loadRound0CloudForYear(YEAR);
-            await loadScheduleFromCloud();
+            await loadScheduleFromCloud(true);
             await loadVacationControlFromCloud();
             cloudHydrationComplete=true; lkmtUpdateSignedInName();
         } catch(e) { cloudHydrationComplete=false; error.textContent = e.message; }
@@ -6054,7 +6097,7 @@ async function showAnnualStatisticsPage() {
     if (cloudSession) {
         try {
             setCloudStatus("Načítám směny pro roční statistiku…");
-            await loadScheduleFromCloud();
+            await loadScheduleFromCloud(true);
         } catch (e) {
             console.error("Načtení směn pro roční statistiku:", e);
             setCloudStatus("Chyba načítání roční statistiky");
