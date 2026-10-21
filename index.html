@@ -8941,14 +8941,14 @@ document.addEventListener("DOMContentLoaded",function(){
 </script>
 
 
-<!-- TEST: Správa přístupů; role editor/watch zatím nesmí dostat účet do dokončení RLS -->
+<!-- Správa přístupů; editor má zatím pouze právo čtení -->
 <div id="lkmtAccessPanel" style="display:none;position:fixed;inset:0;z-index:99999;background:#0009;overflow:auto;padding:4vh 3vw">
   <section style="max-width:1100px;margin:auto;background:white;color:#222;border-radius:12px;padding:20px;box-shadow:0 10px 40px #0005">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:15px">
-      <h2>Správa přístupů – TEST</h2>
+      <h2>Správa přístupů</h2>
       <button class="button" onclick="document.getElementById('lkmtAccessPanel').style.display='none'">Zavřít</button>
     </div>
-    <p style="color:#a33;font-weight:bold">TEST: Administrátor zadá e-mail a roli, uloží a potom vytvoří účet s počátečním heslem. U propojeného účtu může nastavit nové počáteční heslo. Zkoušejte pouze s vlastními testovacími adresami. Editor zatím nesmí zapisovat.</p>
+    <p style="color:#a33;font-weight:bold">Administrátor spravuje přístupy pracovníků. Po uložení e-mailu a role lze vytvořit účet nebo nastavit nové počáteční heslo. Editor má zatím pouze právo čtení.</p>
     <p id="lkmtAccessStatus" role="status"></p>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse" id="lkmtAccessTable">
       <thead><tr><th>Pracovník</th><th>E-mail</th><th>Role</th><th>Aktivní</th><th>Akce</th></tr></thead>
@@ -9003,15 +9003,17 @@ async function lkmtLoadAccess() {
             email.style.width='min(290px,100%)'; tdEmail.append(email);
             const tdRole=document.createElement('td');
             const role=document.createElement('select');
-            for(const r of ['editor','watch']){
-                const opt=document.createElement('option');opt.value=r;opt.textContent=r==='editor'?'Editor':'Watch';role.append(opt);
+            for(const r of (person.role==='admin'?['admin']:['editor','watch'])){
+                const opt=document.createElement('option');opt.value=r;opt.textContent=r==='admin'?'Admin':r==='editor'?'Editor':'Watch';role.append(opt);
             }
-            role.value=person.role==='watch'?'watch':'editor';
+            role.value=person.role==='admin'?'admin':person.role==='watch'?'watch':'editor';
+            if(person.role==='admin') role.disabled=true;
             tdRole.append(role);
             const tdActive=document.createElement('td');
             const active=document.createElement('input');active.type='checkbox';active.checked=person.active!==false;tdActive.append(active);
             const tdAction=document.createElement('td');
             const save=document.createElement('button');save.className='button';save.textContent='Uložit';
+            if(person.role==='admin') { save.disabled=true;save.title='Administrátorský účet se zde neupravuje'; }
             save.onclick=async()=>{
                 save.disabled=true;
                 try {
@@ -9029,7 +9031,7 @@ async function lkmtLoadAccess() {
             if(person.email && person.active) {
                 const setup=document.createElement('button');
                 setup.type='button';setup.className='button';
-                setup.textContent=person.linked?'Nastavit počáteční heslo (TEST)':'Založit účet s heslem (TEST)';
+                setup.textContent=person.linked?'Nastavit počáteční heslo':'Založit účet s heslem';
                 setup.style.marginLeft='6px';
                 setup.onclick=async()=>{
                     if(email.value.trim().toLowerCase()!==String(person.email).trim().toLowerCase() || role.value!==person.role || active.checked!==person.active) {
