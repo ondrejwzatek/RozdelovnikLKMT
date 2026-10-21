@@ -8151,7 +8151,7 @@ function renderVacationPlanningControl() {
         const round0ModalYear=Number(YEAR);
         const lkmtRequestViewOnly=lkmtIsReadOnlyUser() && !lkmtEditorOwnRound0;
         const backdrop=document.createElement("div"); backdrop.className="vpc-request-modal-backdrop";
-        const modal=document.createElement("div"); modal.className="vpc-request-modal"; backdrop.appendChild(modal);
+        const modal=document.createElement("div"); modal.className="vpc-request-modal"; modal.dataset.lkmtWorkerId=String(w.id); backdrop.appendChild(modal);
         const head=document.createElement("div"); head.className="vpc-request-modal-head";
         const title=document.createElement("h4"); title.textContent="Požadavky – "+w.name; head.appendChild(title);
         const close=document.createElement("button"); close.className="vpc-request-close"; close.type="button"; close.textContent="×"; head.appendChild(close); modal.appendChild(head);
@@ -9319,12 +9319,14 @@ function lkmtV7IsPasswordElement(el){return !!el.closest('#lkmtPasswordPanel, #c
 function lkmtV7IsNavigation(el){
   if(el.closest('#cloudStatusBar'))return true;
   // Otevření detailu požadavků je navigace, nikoliv editace.
-  if(el.closest('.vpc-request-modal') && lkmtEditorWorkerId && !round0EditorLocked){
-    const title=el.closest('.vpc-request-modal').querySelector('h4')?.textContent||'';
-    const own=workers.find(w=>String(w.id)===String(lkmtEditorWorkerId));
-    if(own && title==="Požadavky – "+own.name)return true;
+  const requestModal=el.closest('.vpc-request-modal');
+  if(requestModal){
+    if(el.matches('button.vpc-request-close'))return true;
+    // Only the authenticated editor's own, unlocked request form is editable.
+    // Do not infer authorization from the modal's visible title.
+    return !!(lkmtEditorWorkerId && !round0EditorLocked &&
+      requestModal.dataset.lkmtWorkerId===String(lkmtEditorWorkerId));
   }
-  if(el.matches('button.vpc-request-add,button.vpc-request-close'))return true;
   if(lkmtV7NavigationIds.has(el.id))return true;
   if(el.matches('button,a,[role=button]')){
     const text=(el.textContent||'').trim().replace(/^[^\p{L}\d]+/u,'').trim();
