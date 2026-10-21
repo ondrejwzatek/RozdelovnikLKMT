@@ -8305,6 +8305,7 @@ function renderVacationPlanningControl() {
         startInput.innerHTML='<option value=""></option>'; spaStartOptions(YEAR).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=spaDayDateLabel(k);startInput.appendChild(o)}); if(data.start&&spaStartOptions(YEAR).includes(data.start))startInput.value=data.start; startInput.classList.toggle("has-value",!!startInput.value);
         const ret=document.createElement("td"); ret.className="vpc-spa-return"; const returnKey=spaReturnDate(startInput.value); ret.textContent=returnKey?spaDayDateLabel(returnKey):"—"; ret.title="Návrat = nástup + 13 kalendářních dní"; row.appendChild(ret);
         const ownSpaEditor=!!lkmtEditorWorkerId && String(lkmtEditorWorkerId)===String(w.id);
+        [spaInput,houseInput,startInput].forEach(el=>{el.dataset.lkmtOwnSpa=ownSpaEditor?'1':'0';});
         if(lkmtIsReadOnlyUser() && !ownSpaEditor){
             spaInput.disabled=true;houseInput.disabled=true;startInput.disabled=true;
         }
@@ -8630,7 +8631,8 @@ function stageVacationManualChange(month,row,date,newCode) {
     if(newCode && !newEntry) return {ok:false,message:"Tento kód není ve Správě pracovníků."};
     if(!isVacationAdmin()){
         const oldEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(before).toLocaleLowerCase("cs"));
-        if(!lkmtEditorWorkerId || (oldEntry && String(oldEntry.worker.id)!==String(lkmtEditorWorkerId)) ||
+        if(!lkmtEditorWorkerId || (before && !oldEntry) ||
+           (oldEntry && String(oldEntry.worker.id)!==String(lkmtEditorWorkerId)) ||
            (newEntry && String(newEntry.worker.id)!==String(lkmtEditorWorkerId)))
             return {ok:false,message:"Editor smí upravovat pouze vlastní iniciály."};
         const week=getMonthWeeks(month).find(w=>w.some(d=>makeDateKey(d)===makeDateKey(date)));
@@ -8672,6 +8674,28 @@ async function saveVacationManualChanges() {
     const changes=Object.values(vacationManualChanges);
     if(!changes.length) return;
     const entries=getVacationCodeEntries();
+    // Recheck ownership at commit time, not only when a dropdown was opened.
+    if(!isVacationAdmin()){
+        if(!lkmtEditorWorkerId){alert("Nemáte aktivní oprávnění Editora.");return;}
+        for(const ch of changes){
+            const date=parseLocalDate(ch.date);
+            const before=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.original||"").toLocaleLowerCase("cs"));
+            const after=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.current||"").toLocaleLowerCase("cs"));
+            if(!date || (ch.original && !before) ||
+               (before && String(before.worker.id)!==String(lkmtEditorWorkerId)) ||
+               (after && String(after.worker.id)!==String(lkmtEditorWorkerId)) ||
+               (ch.current && !after)){
+                alert("Editor může ukládat pouze vlastní iniciály.");
+                return;
+            }
+            const weeks=getMonthWeeks(ch.month);
+            const wi=weeks.findIndex(w=>w.some(d=>makeDateKey(d)===makeDateKey(date)));
+            if(wi<0 || date.getDay()===0 || date.getDay()===6 ||
+               ch.row>=Number(vacationVV[vacationWeekKey(ch.month,wi)]||0)){
+                alert("Změna je mimo aktivní pole VV.");return;
+            }
+        }
+    }
 
     /* Běžný pracovník nesmí při uložení překročit nárok aktivního kola.
        Admin má výjimku a může zůstatek dostat i do mínusu. */
@@ -9112,7 +9136,7 @@ function renderVacationMonth(month, table) {
                     td.appendChild(display);
                 }
             } else if(editable || editorCell){
-                const input=document.createElement("select"); input.className="vacation-code"; const key=vacationCellKey(month,row,date);
+                const input=document.createElement("select"); input.className="vacation-code"; input.dataset.lkmtOwnVacation=editorCell?'1':'0'; const key=vacationCellKey(month,row,date);
                 const currentValue=vacationPlan[key]||"";
                 const usedWorkerIds=new Set();
                 for(let otherRow=0;otherRow<VACATION_ROWS;otherRow++){
@@ -9396,19 +9420,12 @@ function lkmtV7IsNavigation(el){
   }
   // Opening the request detail never writes data; authorization is checked inside the modal.
   if(el.matches('button.vpc-request-add'))return true;
-  if(el.matches('select.vacation-code')){
-    const own=String(lkmtEditorWorkerId||'');
-    const code=String(el.value||'').trim().toLocaleLowerCase('cs');
-    const entry=getVacationCodeEntries().find(e=>e.code.toLocaleLowerCase('cs')===code);
-    return !!(own && (!code || (entry && String(entry.worker.id)===own)));
-  }
+  if(el.matches('select.vacation-code'))
+    return !!lkmtEditorWorkerId && el.dataset.lkmtOwnVacation==='1';
   if(el.id==='saveVacationManualBtn' || el.id==='discardVacationManualBtn')
     return !!lkmtEditorWorkerId;
-  if(el.matches('.vpc-spa-card select')){
-    const row=el.closest('tr');
-    const own=workers.find(w=>String(w.id)===String(lkmtEditorWorkerId));
-    return !!(own && row && row.children[1]?.textContent===own.name);
-  }
+  if(el.matches('.vpc-spa-card select'))
+    return !!lkmtEditorWorkerId && el.dataset.lkmtOwnSpa==='1';
   if(lkmtV7NavigationIds.has(el.id))return true;
   if(el.matches('button,a,[role=button]')){
     const text=(el.textContent||'').trim().replace(/^[^\p{L}\d]+/u,'').trim();
@@ -9436,7 +9453,15 @@ function lkmtV7Lock(){
     return;
   }
   document.querySelectorAll('input,textarea,select,button,[contenteditable="true"]').forEach(el=>{
-    if(lkmtV7IsPasswordElement(el)||lkmtV7IsNavigation(el))return;
+    if(lkmtV7IsPasswordElement(el)||lkmtV7IsNavigation(el)){
+      if(el.dataset.lkmtV7Locked){
+        if(el.dataset.lkmtV7Locked==='disabled')el.disabled=false;
+        else if(el.dataset.lkmtV7Locked==='readonly')el.readOnly=false;
+        else if(el.dataset.lkmtV7Locked==='editable')el.contentEditable='true';
+        delete el.dataset.lkmtV7Locked;
+      }
+      return;
+    }
     if(el.matches('button') && el.closest('#cloudStatusBar'))return;
     if(el.matches('input,textarea')){
       if(el.type==='hidden')return;
