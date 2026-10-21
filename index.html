@@ -8095,7 +8095,11 @@ function renderVacationPlanningControl() {
     // 0. kolo – jeden pevný řádek na pracovníka; detail více požadavků je v plovoucím okně.
     const zero=document.createElement("div"); zero.className="vpc-round vpc-round-zero";
     const zhead=document.createElement("div"); zhead.className="vpc-round-head";
-    zhead.innerHTML="<span>0. kolo – požadavky</span><small>bez pořadí</small>"; zero.appendChild(zhead);
+    zhead.innerHTML="<span>0. kolo – požadavky</span>";
+    const round0Status=document.createElement("small");
+    round0Status.textContent=round0EditorLocked?"🔒 Uzamčeno pro Editory":"🔓 Odemčeno pro Editory";
+    zhead.appendChild(round0Status);
+    zero.appendChild(zhead);
     if(admin){
         const lockButton=document.createElement("button");
         lockButton.type="button";
