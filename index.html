@@ -1618,8 +1618,7 @@ async function cloudFetch(path, options) {
         const isEditorRound0AtomicWrite = lkmtMethod === 'POST'
             && /^rpc\/lkmt_save_round0_atomic(\?|$)/.test(path)
             && typeof lkmtEditorWorkerId !== 'undefined'
-            && !!lkmtEditorWorkerId
-            && !round0EditorLocked;
+            && !!lkmtEditorWorkerId;
         const isEditorSpaWrite = lkmtMethod === 'POST'
             && /^vacation_editor_spa_requests\?/.test(path)
             && typeof lkmtEditorWorkerId !== 'undefined'
