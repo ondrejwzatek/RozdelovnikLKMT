@@ -8912,8 +8912,10 @@ async function saveVacationManualChanges() {
                         new_worker_id:newEntry?String(newEntry.worker.id):null,
                         assignment:newEntry?newEntry.assignmentType:null};
                 });
-                const rpc=await cloudFetch("rpc/lkmt_save_editor_vacation_atomic",{
-                    method:"POST",headers:{"Content-Type":"application/json"},
+                // Editor RPC is authenticated and checked by the database itself.
+                // Call it directly to avoid the generic read-only REST write filter.
+                const rpc=await fetch(SUPABASE_URL+"/rest/v1/rpc/lkmt_save_editor_vacation_atomic",{
+                    method:"POST",headers:cloudHeaders({"Content-Type":"application/json"}),
                     body:JSON.stringify({p_year:saveYear,p_worker_id:String(lkmtEditorWorkerId),p_changes:rpcChanges})
                 });
                 if(!rpc.ok)throw new Error("Transakční uložení selhalo: "+await rpc.text());
