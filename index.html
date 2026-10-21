@@ -8148,6 +8148,7 @@ function renderVacationPlanningControl() {
         const lkmtEditorOwnRound0=!!lkmtEditorWorkerId
             && String(lkmtEditorWorkerId)===String(w.id)
             && !round0EditorLocked;
+        const round0ModalYear=Number(YEAR);
         const lkmtRequestViewOnly=lkmtIsReadOnlyUser() && !lkmtEditorOwnRound0;
         const backdrop=document.createElement("div"); backdrop.className="vpc-request-modal-backdrop";
         const modal=document.createElement("div"); modal.className="vpc-request-modal"; backdrop.appendChild(modal);
@@ -8189,12 +8190,14 @@ function renderVacationPlanningControl() {
             if(lkmtRequestViewOnly){backdrop.remove();return;}
             ensureRound0RequestIds(w.id,list);
             if(lkmtEditorOwnRound0){
+                if(Number(YEAR)!==round0ModalYear){alert("Rok se změnil. Otevřete požadavky znovu.");return;}
+                if(round0EditorLocked){alert("0. kolo bylo mezitím uzamčeno.");return;}
                 const activeList=list.filter(r=>r.from||r.to||r.type);
                 if(activeList.some(r=>!r.from||!r.to||!['D','RH'].includes(r.type)||r.to<r.from)){
                     alert("Vyplňte platný termín Od–Do a typ D/RH.");return;
                 }
                 try{
-                    await saveRound0WorkerRecord(YEAR,w.id,activeList);
+                    await saveRound0WorkerRecord(round0ModalYear,w.id,activeList);
                     vacationRound0Requests[String(w.id)]=activeList;
                     saveData(round0YearKey(YEAR),vacationRound0Requests);
                     backdrop.remove();renderVacationPlanning();
