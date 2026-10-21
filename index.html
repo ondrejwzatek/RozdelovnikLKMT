@@ -8645,9 +8645,9 @@ function stageVacationManualChange(month,row,date,newCode) {
            (oldEntry && String(oldEntry.worker.id)!==String(lkmtEditorWorkerId)) ||
            (newEntry && String(newEntry.worker.id)!==String(lkmtEditorWorkerId)))
             return {ok:false,message:"Editor smí upravovat pouze vlastní iniciály."};
-        const week=getMonthWeeks(month).find(w=>w.some(d=>makeDateKey(d)===makeDateKey(date)));
-        const wi=getMonthWeeks(month).indexOf(week);
-        if(!week || date.getDay()===0 || date.getDay()===6 || row>=Number(vacationVV[vacationWeekKey(month,wi)]||0))
+        const weeks=getMonthWeeks(month);
+        const wi=weeks.findIndex(w=>w.some(d=>makeDateKey(d)===makeDateKey(date)));
+        if(wi<0 || date.getDay()===0 || date.getDay()===6 || row>=Number(vacationVV[vacationWeekKey(month,wi)]||0))
             return {ok:false,message:"Pole je mimo povolený limit VV."};
     }
 
