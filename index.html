@@ -8841,6 +8841,7 @@ async function saveVacationManualChanges() {
         updateVacationManualButtons();
         renderVacationPlanningControl();
         setCloudStatus(cloudSession ? "Online • uloženo" : "Uloženo lokálně");
+        return true;
     } catch(err) {
         console.error("Uložení ručních změn dovolených:",err);
         updateVacationManualButtons();
