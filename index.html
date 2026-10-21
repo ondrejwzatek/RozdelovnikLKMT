@@ -8749,7 +8749,9 @@ function stageVacationManualChange(month,row,date,newCode) {
     return {ok:true};
 }
 
+let lkmtVacationManualSaveInProgress=false;
 async function saveVacationManualChanges() {
+    if(lkmtVacationManualSaveInProgress)return false;
     const changes=Object.values(vacationManualChanges);
     if(!changes.length) return;
     const saveYear=Number(YEAR);
@@ -8813,6 +8815,7 @@ async function saveVacationManualChanges() {
         }
     }
     const btn=document.getElementById("saveVacationManualBtn");
+    lkmtVacationManualSaveInProgress=true;
     if(btn){btn.disabled=true;btn.textContent="Ukládám…";}
     try {
         if(Number(YEAR)!==saveYear)throw new Error("Během ukládání se změnil rok.");
@@ -8878,6 +8881,7 @@ async function saveVacationManualChanges() {
         alert("Uložení selhalo: "+(err&&err.message?err.message:"Neznámá chyba")+". Změny zůstávají připravené k opakování.");
         return false;
     } finally {
+        lkmtVacationManualSaveInProgress=false;
         if(btn) btn.textContent="Uložit změny";
         updateVacationManualButtons();
     }
