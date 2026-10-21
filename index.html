@@ -2747,7 +2747,7 @@ async function initCloud() {
             if (!hasYearProfile) {
                 throw new Error("Rok "+YEAR+" nemá profil v app_settings. Pracovníky nelze načíst z globální tabulky workers. Založte rok kopírováním pracovníků z jiného roku.");
             }
-            loadVacationPlanLocalForYear(YEAR); await loadVacationPlanFromCloud(); await loadRound0CloudForYear(YEAR); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); cloudHydrationComplete=true; lkmtUpdateSignedInName(); } catch(e) { cloudHydrationComplete=false; console.error(e); setCloudStatus("Chyba připojení"); }
+            loadVacationPlanLocalForYear(YEAR); await loadVacationPlanFromCloud(true); await loadRound0CloudForYear(YEAR); await loadScheduleFromCloud(true); await loadVacationControlFromCloud(); cloudHydrationComplete=true; lkmtUpdateSignedInName(); } catch(e) { cloudHydrationComplete=false; console.error(e); setCloudStatus("Chyba připojení"); }
     }
 }
 
@@ -2764,9 +2764,9 @@ document.addEventListener("DOMContentLoaded", function() {
                 throw new Error("Rok "+YEAR+" nemá profil v app_settings. Pracovníky nelze načíst z globální tabulky workers. Založte rok kopírováním pracovníků z jiného roku.");
             }
             loadVacationPlanLocalForYear(YEAR);
-            await loadVacationPlanFromCloud();
+            await loadVacationPlanFromCloud(true);
             await loadRound0CloudForYear(YEAR);
-            await loadScheduleFromCloud();
+            await loadScheduleFromCloud(true);
             await loadVacationControlFromCloud();
             cloudHydrationComplete=true; lkmtUpdateSignedInName();
         } catch(e) { cloudHydrationComplete=false; error.textContent = e.message; }
@@ -6129,7 +6129,7 @@ async function showAnnualStatisticsPage() {
     if (cloudSession) {
         try {
             setCloudStatus("Načítám směny pro roční statistiku…");
-            await loadScheduleFromCloud();
+            await loadScheduleFromCloud(true);
         } catch (e) {
             console.error("Načtení směn pro roční statistiku:", e);
             setCloudStatus("Chyba načítání roční statistiky");
