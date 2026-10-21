@@ -7683,6 +7683,15 @@ async function loadSpaRequestsCloudForYear(year){
             saveData(spaRequestsYearKey(year),vacationSpaRequests);
         }
     }catch(e){ console.error("Načtení ročních lázní pracovníků:",e); }
+    try{
+        const records=await readEditorSpaRecords(year);
+        if(Number(YEAR)===Number(year))records.forEach(record=>{
+            vacationSpaRequests[String(record.worker_id)]={
+                spa:record.spa||"",house:record.house||"",start:record.start_date||"",
+                returnDate:spaReturnDate(record.start_date||"")
+            };
+        });
+    }catch(e){console.error("Načtení individuálních lázní:",e);}
 }
 async function saveSpaRequestsCloudForYear(year){
     saveData(spaRequestsYearKey(year),vacationSpaRequests);
@@ -7691,6 +7700,27 @@ async function saveSpaRequestsCloudForYear(year){
         const r=await cloudFetch("app_settings?on_conflict=setting_key",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({setting_key:spaRequestsCloudKey(year),setting_value:vacationSpaRequests,updated_at:new Date().toISOString()})});
         if(!r.ok) throw new Error(await r.text());
     }catch(e){ console.error("Uložení ročních lázní pracovníků:",e); setCloudStatus("Chyba uložení lázní"); }
+}
+// V7.5 TEST: spa requests are stored per worker, with ownership enforced by RLS.
+async function readEditorSpaRecords(year){
+    if(!cloudSession)return [];
+    const r=await cloudFetch("vacation_editor_spa_requests?planning_year=eq."+Number(year)+"&select=worker_id,spa,house,start_date",{method:"GET"});
+    if(!r.ok)throw new Error("Načtení lázeňských požadavků: "+await r.text());
+    return await r.json();
+}
+async function saveEditorSpaRecord(year,workerId,request){
+    if(!cloudSession)throw new Error("Není aktivní přihlášení.");
+    if(Number(YEAR)!==Number(year))throw new Error("Rok se změnil. Zkuste to znovu.");
+    if(!isVacationAdmin()){
+        if(!lkmtEditorWorkerId || String(lkmtEditorWorkerId)!==String(workerId) ||
+           String(await lkmtFetchMyWorkerId())!==String(workerId))throw new Error("Lze upravovat pouze vlastní lázně.");
+    }
+    const r=await cloudFetch("vacation_editor_spa_requests?on_conflict=planning_year,worker_id",{
+        method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+        body:JSON.stringify({planning_year:Number(year),worker_id:String(workerId),
+            spa:request.spa||"",house:request.house||"",start_date:request.start||"",updated_at:new Date().toISOString()})
+    });
+    if(!r.ok)throw new Error("Uložení lázní: "+await r.text());
 }
 function countWeekdaysInclusive(fromKey,toKey) {
     const from=parseDateKey(fromKey), to=parseDateKey(toKey);
@@ -8270,7 +8300,23 @@ function renderVacationPlanningControl() {
         const startTd=document.createElement("td"), startInput=document.createElement("select"); startTd.appendChild(startInput); row.appendChild(startTd);
         startInput.innerHTML='<option value=""></option>'; spaStartOptions(YEAR).forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=spaDayDateLabel(k);startInput.appendChild(o)}); if(data.start&&spaStartOptions(YEAR).includes(data.start))startInput.value=data.start; startInput.classList.toggle("has-value",!!startInput.value);
         const ret=document.createElement("td"); ret.className="vpc-spa-return"; const returnKey=spaReturnDate(startInput.value); ret.textContent=returnKey?spaDayDateLabel(returnKey):"—"; ret.title="Návrat = nástup + 13 kalendářních dní"; row.appendChild(ret);
-        function saveSpa(){saveSpaLayoutRequest(w.id,{spa:spaInput.value,house:houseInput.value,start:startInput.value});const d=vacationSpaRequests[String(w.id)]||{};ret.textContent=d.returnDate?spaDayDateLabel(d.returnDate):"—";}
+        const ownSpaEditor=!!lkmtEditorWorkerId && String(lkmtEditorWorkerId)===String(w.id);
+        if(lkmtIsReadOnlyUser() && !ownSpaEditor){
+            spaInput.disabled=true;houseInput.disabled=true;startInput.disabled=true;
+        }
+        async function saveSpa(){
+            const request={spa:spaInput.value,house:houseInput.value,start:startInput.value};
+            if(lkmtIsReadOnlyUser()){
+                if(!ownSpaEditor)return;
+                try{
+                    await saveEditorSpaRecord(YEAR,w.id,request);
+                    vacationSpaRequests[String(w.id)]=Object.assign({},request,{returnDate:spaReturnDate(request.start)});
+                    saveData(spaRequestsYearKey(YEAR),vacationSpaRequests);
+                }catch(e){alert(e.message);return;}
+            }else saveSpaLayoutRequest(w.id,request);
+            const d=vacationSpaRequests[String(w.id)]||{};
+            ret.textContent=d.returnDate?spaDayDateLabel(d.returnDate):"—";
+        }
         spaInput.addEventListener("change",function(){spaInput.classList.toggle("has-value",!!spaInput.value);fillHouses("");saveSpa();}); houseInput.addEventListener("change",function(){houseInput.classList.toggle("has-value",!!houseInput.value);saveSpa();}); startInput.addEventListener("change",function(){startInput.classList.toggle("has-value",!!startInput.value);saveSpa();});
         spaBody.appendChild(row);
     });
@@ -9331,6 +9377,11 @@ function lkmtV7IsNavigation(el){
   }
   // Opening the request detail never writes data; authorization is checked inside the modal.
   if(el.matches('button.vpc-request-add'))return true;
+  if(el.matches('.vpc-spa-card select')){
+    const row=el.closest('tr');
+    const own=workers.find(w=>String(w.id)===String(lkmtEditorWorkerId));
+    return !!(own && row && !round0EditorLocked && row.children[1]?.textContent===own.name);
+  }
   if(lkmtV7NavigationIds.has(el.id))return true;
   if(el.matches('button,a,[role=button]')){
     const text=(el.textContent||'').trim().replace(/^[^\p{L}\d]+/u,'').trim();
