@@ -1615,8 +1615,12 @@ async function cloudFetch(path, options) {
             && typeof lkmtEditorWorkerId !== 'undefined'
             && !!lkmtEditorWorkerId
             && !round0EditorLocked;
+        const isEditorSpaWrite = lkmtMethod === 'POST'
+            && /^vacation_editor_spa_requests\?/.test(path)
+            && typeof lkmtEditorWorkerId !== 'undefined'
+            && !!lkmtEditorWorkerId;
 
-        if (!['GET','HEAD','OPTIONS'].includes(lkmtMethod) && !isReadRpc && !isEditorRequestWrite) {
+        if (!['GET','HEAD','OPTIONS'].includes(lkmtMethod) && !isReadRpc && !isEditorRequestWrite && !isEditorSpaWrite) {
             console.warn('LKMT WATCH: zápis zablokován:', path);
             return new Response(JSON.stringify({message:'Režim pouze pro čtení'}), {status:403, headers:{'Content-Type':'application/json'}});
         }
@@ -9380,7 +9384,7 @@ function lkmtV7IsNavigation(el){
   if(el.matches('.vpc-spa-card select')){
     const row=el.closest('tr');
     const own=workers.find(w=>String(w.id)===String(lkmtEditorWorkerId));
-    return !!(own && row && !round0EditorLocked && row.children[1]?.textContent===own.name);
+    return !!(own && row && row.children[1]?.textContent===own.name);
   }
   if(lkmtV7NavigationIds.has(el.id))return true;
   if(el.matches('button,a,[role=button]')){
