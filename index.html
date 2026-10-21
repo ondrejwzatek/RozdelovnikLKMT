@@ -7714,7 +7714,9 @@ function ensureRound0RequestIds(workerId, list){
     list.forEach(function(r){
         if(!r._id){ r._id="r0_"+YEAR+"_"+String(workerId)+"_"+Date.now().toString(36)+"_"+Math.random().toString(36).slice(2,8); changed=true; }
     });
-    if(changed) setRound0Requests(workerId,list);
+    // Editor may prepare IDs locally, but must never write the admin aggregate.
+    // The individual record is persisted only after validation and explicit save.
+    if(changed && isVacationAdmin()) setRound0Requests(workerId,list);
     return list;
 }
 function isCzechHolidayDate(date){
