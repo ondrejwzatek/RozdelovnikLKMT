@@ -2552,13 +2552,13 @@ async function loadAllMonthlyScheduleRows(selectExpr) {
 }
 
 // TEST V7.4.1: read only rows in the distribution-year window.
-async function loadScopedCloudRows(table, order, rangeStart, rangeEnd) {
+async function loadScopedCloudRows(table, order, rangeStart, rangeEnd, selectExpr) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(rangeStart) || !/^\d{4}-\d{2}-\d{2}$/.test(rangeEnd) || rangeStart > rangeEnd) {
         throw new Error("Neplatný rozsah dat pro rok "+YEAR);
     }
     const all=[], pageSize=1000;
     for(let offset=0;;offset+=pageSize){
-        const path=table+"?select=*&plan_date=gte."+rangeStart+"&plan_date=lte."+rangeEnd+
+        const path=table+"?select="+encodeURIComponent(selectExpr||"*")+"&plan_date=gte."+rangeStart+"&plan_date=lte."+rangeEnd+
             "&order="+order+"&offset="+offset+"&limit="+pageSize;
         const response=await cloudFetch(path,{method:"GET"});
         if(!response.ok) throw new Error("Načtení "+table+": "+await response.text());
@@ -2639,7 +2639,9 @@ async function saveScheduleToCloudNow(force) {
             /* v56: force-save je skutečná synchronizace, ne pouze upsert.
                Řádek, který v lokálním schedule už neexistuje, musí být odstraněn
                i z monthly_schedule. To řeší obecné mazání (6, 19, SL-19...). */
-            let cloudRows = await loadAllMonthlyScheduleRows("id,plan_date,worker_id,assignment");
+            recalculateMonthPeriods();
+            const scopeFrom=getPeriod(0).from, scopeTo=getPeriod(11).to;
+            let cloudRows = await loadScopedCloudRows("monthly_schedule","plan_date.asc,worker_id.asc",scopeFrom,scopeTo,"id,plan_date,worker_id,assignment");
             const wanted = new Map();
             rows.forEach(function(row){ wanted.set(row.plan_date + "_" + row.worker_id, row.assignment); });
             for (const c of cloudRows) {
@@ -2651,8 +2653,8 @@ async function saveScheduleToCloudNow(force) {
                     if (!del.ok) throw new Error("Mazání staré směny: " + await del.text());
                 }
             }
-            cloudRows = await loadAllMonthlyScheduleRows("plan_date,worker_id,assignment");
-            for (const row of rows) {
+            cloudRows = await loadScopedCloudRows("monthly_schedule","plan_date.asc,worker_id.asc",scopeFrom,scopeTo,"plan_date,worker_id,assignment");
+            for (const row of rows.filter(function(r){return r.plan_date>=scopeFrom && r.plan_date<=scopeTo;})) {
                 const found = cloudRows.some(function(c) {
                     return String(c.plan_date) === row.plan_date && String(c.worker_id) === row.worker_id && String(c.assignment) === row.assignment;
                 });
