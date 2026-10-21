@@ -7430,20 +7430,25 @@ function saveRound0CloudForYear(year){
 // The existing admin aggregate is retained for backward compatibility until
 // the new editor flow is fully migrated and tested.
 async function saveRound0WorkerRecord(year,workerId,requests){
-    if(!isVacationAdmin())throw new Error("Ukládání požadavků Editora ještě není povoleno.");
     if(!cloudSession)throw new Error("Není aktivní přihlášení.");
-    const path="vacation_round0_editor_requests?on_conflict=planning_year,worker_id";
-    const response=await cloudFetch(path,{
+    if(!Array.isArray(requests))throw new Error("Neplatný formát požadavků.");
+    if(!isVacationAdmin()){
+        const ownId=await lkmtFetchMyWorkerId();
+        if(String(ownId)!==String(workerId))throw new Error("Editor smí měnit jen své požadavky.");
+        if(round0EditorLocked)throw new Error("0. kolo je uzamčeno.");
+    }
+    const response=await cloudFetch("vacation_round0_editor_requests?on_conflict=planning_year,worker_id",{
         method:"POST",
         headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
-        body:JSON.stringify({
-            planning_year:Number(year),
-            worker_id:String(workerId),
-            requests:requests,
-            updated_at:new Date().toISOString()
-        })
+        body:JSON.stringify({planning_year:Number(year),worker_id:String(workerId),requests,updated_at:new Date().toISOString()})
     });
     if(!response.ok)throw new Error("Uložení individuálních požadavků: "+await response.text());
+}
+async function lkmtFetchMyWorkerId(){
+    if(!cloudSession)return null;
+    const response=await cloudFetch("rpc/lkmt_my_worker_id",{method:"POST",body:"{}"});
+    if(!response.ok)throw new Error("Nepodařilo se ověřit pracovníka.");
+    return await response.json();
 }
 async function readRound0WorkerRecords(year){
     if(!cloudSession)return [];
