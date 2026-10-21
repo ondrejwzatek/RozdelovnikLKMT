@@ -8259,6 +8259,34 @@ function renderVacationPlanningControl() {
                         throw new Error("Počkejte na načtení plánu dovolených.");
                     const previous=getRound0Requests(w.id);
                     const oldGenerated=previous.flatMap(r=>Array.isArray(r._generated)?r._generated:[]);
+                    // Older TEST builds wrote the vacation cells but did not persist
+                    // _generated after incorrectly reporting a failed save. Recover
+                    // only when the user explicitly confirms the legacy cells.
+                    const legacy=previous.filter(r=>!Array.isArray(r._generated) && r.from && r.to && ['D','RH'].includes(r.type));
+                    if(legacy.length){
+                        const recover=[];
+                        for(const req of legacy){
+                            const from=parseDateKey(req.from),to=parseDateKey(req.to);
+                            if(!from||!to)continue;
+                            for(let d=new Date(from);d<=to;d.setDate(d.getDate()+1)){
+                                if(d.getDay()===0||d.getDay()===6)continue;
+                                const day=new Date(d),month=findVacationMonthForDate(day);
+                                if(month<0)continue;
+                                const code=req.type==='RH'?String(w.rh||'').trim():String(isCzechHolidayDate(day)?w.dHoliday:w.d||'').trim();
+                                const wi=getVacationWeekIndexForDate(month,day);
+                                const vv=wi<0?0:Number(vacationVV[vacationWeekKey(month,wi)]||0);
+                                for(let row=0;row<Math.min(vv,VACATION_ROWS);row++){
+                                    if((vacationPlan[vacationCellKey(month,row,day)]||'')===code && code)
+                                        recover.push({month,row,date:makeDateKey(day),code});
+                                }
+                            }
+                        }
+                        if(recover.length){
+                            if(!confirm("Tento požadavek pochází ze starší TEST verze bez evidence vytvořených buněk.\\n\\nOdstranit také "+recover.length+" odpovídajících iniciál v jeho termínu? Potvrďte pouze tehdy, pokud je vytvořilo právě 0. kolo."))
+                                return;
+                            oldGenerated.push(...recover);
+                        }
+                    }
                     const backupPlan=Object.assign({},vacationPlan);
                     const backupChanges=Object.assign({},vacationManualChanges);
                     try{
