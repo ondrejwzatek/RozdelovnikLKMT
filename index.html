@@ -9396,6 +9396,14 @@ function lkmtV7IsNavigation(el){
   }
   // Opening the request detail never writes data; authorization is checked inside the modal.
   if(el.matches('button.vpc-request-add'))return true;
+  if(el.matches('select.vacation-code')){
+    const own=String(lkmtEditorWorkerId||'');
+    const code=String(el.value||'').trim().toLocaleLowerCase('cs');
+    const entry=getVacationCodeEntries().find(e=>e.code.toLocaleLowerCase('cs')===code);
+    return !!(own && (!code || (entry && String(entry.worker.id)===own)));
+  }
+  if(el.id==='saveVacationManualBtn' || el.id==='discardVacationManualBtn')
+    return !!lkmtEditorWorkerId;
   if(el.matches('.vpc-spa-card select')){
     const row=el.closest('tr');
     const own=workers.find(w=>String(w.id)===String(lkmtEditorWorkerId));
