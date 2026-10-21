@@ -4635,6 +4635,7 @@ async function saveManualScheduleChanges() {
         manualScheduleChanges = {};
         updateManualScheduleButtons();
         setCloudStatus(cloudSession ? "Online • uloženo" : "Uloženo lokálně");
+        return true;
     } catch(e) {
         console.error("Uložení ručních změn:", e);
         setCloudStatus("Chyba ukládání měsíčního rozdělovníku");
@@ -8252,7 +8253,48 @@ function renderVacationPlanningControl() {
                     }
                 }
                 try{
-                    await saveRound0WorkerRecord(round0ModalYear,w.id,activeList);
+                    if(Object.keys(vacationManualChanges).length)
+                        throw new Error("Nejprve uložte nebo zahoďte rozpracované změny v tabulce dovolených.");
+                    if(!cloudVacationPlanReady || !cloudScheduleReady)
+                        throw new Error("Počkejte na načtení plánu dovolených.");
+                    const previous=getRound0Requests(w.id);
+                    const oldGenerated=previous.flatMap(r=>Array.isArray(r._generated)?r._generated:[]);
+                    const backupPlan=Object.assign({},vacationPlan);
+                    const backupChanges=Object.assign({},vacationManualChanges);
+                    try{
+                        for(const cell of oldGenerated){
+                            const date=parseDateKey(cell.date);
+                            if(!date)continue;
+                            const key=vacationCellKey(cell.month,cell.row,date);
+                            if((vacationPlan[key]||"")===cell.code){
+                                const removed=stageVacationManualChange(cell.month,cell.row,date,"");
+                                if(!removed.ok)throw new Error(removed.message);
+                            }
+                        }
+                        for(const request of activeList){
+                            const validation=validateRound0Request(w,request);
+                            if(!validation.ok)throw new Error(validation.message);
+                            request._generated=[];
+                            for(const p of validation.placements){
+                                if(p.adopted)continue;
+                                const date=parseDateKey(p.date);
+                                const added=stageVacationManualChange(p.month,p.row,date,p.code);
+                                if(!added.ok)throw new Error(added.message);
+                                if(backupPlan[vacationCellKey(p.month,p.row,date)]!==p.code)
+                                    request._generated.push({month:p.month,row:p.row,date:p.date,code:p.code});
+                            }
+                        }
+                        if(Object.keys(vacationManualChanges).length){
+                            const saved=await saveVacationManualChanges();
+                            if(saved!==true)throw new Error("Zápis iniciál nebyl dokončen. Požadavek nebyl uložen.");
+                        }
+                        await saveRound0WorkerRecord(round0ModalYear,w.id,activeList);
+                    }catch(err){
+                        vacationPlan=backupPlan;
+                        vacationManualChanges=backupChanges;
+                        updateVacationManualButtons();
+                        throw err;
+                    }
                     vacationRound0Requests[String(w.id)]=activeList;
                     saveData(round0YearKey(YEAR),vacationRound0Requests);
                     backdrop.remove();renderVacationPlanning();
@@ -8803,6 +8845,7 @@ async function saveVacationManualChanges() {
         console.error("Uložení ručních změn dovolených:",err);
         updateVacationManualButtons();
         alert("Uložení selhalo: "+(err&&err.message?err.message:"Neznámá chyba")+". Změny zůstávají připravené k opakování.");
+        return false;
     } finally {
         if(btn) btn.textContent="Uložit změny";
         updateVacationManualButtons();
