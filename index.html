@@ -2069,12 +2069,12 @@ async function switchDisplayedYear(newYear){
     /* Produkce: po změně rozdělovníkového roku znovu sestavíme schedule přes
        hranice a legendu právě zvoleného roku. */
     if(cloudSession){
-        try{ await loadScheduleFromCloud(); }catch(e){ console.error(e); setCloudStatus("Chyba načítání měsíčního rozdělovníku"); }
+        try{ await loadScheduleFromCloud(true); }catch(e){ console.error(e); setCloudStatus("Chyba načítání měsíčního rozdělovníku"); }
     }
     __yearSwitchMark('Měsíční rozpis');
     // Teprve teď mapujeme vacation_plan podle období právě zvoleného roku.
     if(cloudSession){
-        try{ await loadVacationPlanFromCloud(); }catch(e){ console.error(e); setCloudStatus("Chyba načítání plánu dovolených"); }
+        try{ await loadVacationPlanFromCloud(true); }catch(e){ console.error(e); setCloudStatus("Chyba načítání plánu dovolených"); }
     }
     __yearSwitchMark('Plán dovolených');
     await loadRound0CloudForYear(YEAR);
@@ -2288,9 +2288,16 @@ function loadVacationPlanLocalForYear(year) {
     return vacationPlan;
 }
 
-async function loadVacationPlanFromCloud() {
+async function loadVacationPlanFromCloud(scopedYearOnly) {
     setCloudStatus("Načítám plán dovolených…");
-    const rows = await loadAllVacationPlanRows("*");
+    let rows;
+    if(scopedYearOnly){
+        recalculateMonthPeriods();
+        const first=getPeriod(0), last=getPeriod(11);
+        rows=await loadScopedCloudRows("vacation_plan","plan_date.asc,row_number.asc",first.from,last.to);
+    }else{
+        rows=await loadAllVacationPlanRows("*");
+    }
     if (rows.length) {
         vacationPlan = {};
         rows.forEach(function(row) {
@@ -2302,8 +2309,11 @@ async function loadVacationPlanFromCloud() {
             vacationPlan[vacationCellKey(month, zeroRow, date)] = String(row.code || "");
         });
         saveData(localYearKey("rozdelovnik_vacation_plan",YEAR), vacationPlan);
-    } else {
+    } else if(!scopedYearOnly) {
         await saveVacationPlanToCloudNow(true);
+    } else {
+        vacationPlan={};
+        saveData(localYearKey("rozdelovnik_vacation_plan",YEAR),vacationPlan);
     }
     cloudVacationPlanReady = true;
     if (typeof renderVacationPlanning === "function" && document.getElementById("vacationPage") && !document.getElementById("vacationPage").classList.contains("hidden")) renderVacationPlanning();
@@ -2514,10 +2524,26 @@ async function loadAllMonthlyScheduleRows(selectExpr) {
     return all;
 }
 
-async function loadScheduleFromCloud() {
-    setCloudStatus("Načítám měsíční rozdělovník…");
-    const rows = await loadAllMonthlyScheduleRows("*");
+// TEST V7.4.1: read only rows in the distribution-year window.
+async function loadScopedCloudRows(table, order, rangeStart, rangeEnd) {
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(rangeStart) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(rangeEnd) || rangeStart > rangeEnd) {
+        throw new Error("Neplatný rozsah dat pro rok "+YEAR);
+    }
+    const all=[], pageSize=1000;
+    for(let offset=0;;offset+=pageSize){
+        const path=table+"?select=*&plan_date=gte."+rangeStart+"&plan_date=lte."+rangeEnd+
+            "&order="+order+"&offset="+offset+"&limit="+pageSize;
+        const response=await cloudFetch(path,{method:"GET"});
+        if(!response.ok) throw new Error("Načtení "+table+": "+await response.text());
+        const batch=await response.json();
+        all.push(...batch);
+        if(batch.length<pageSize) break;
+    }
+    return all;
+}
 
+async function loadScheduleFromCloud(scopedYearOnly) {
+    setCloudStatus("Načítám měsíční rozdělovník…");
     /* Produkce: schedule v paměti drží pouze právě otevřený ROZDĚLOVNÍKOVÝ rok,
        nikoli všechny kalendářní roky smíchané přes jednu legendu. Hranice bereme
        z periodSetup: první den 1. období až poslední den 12. období. Přidáváme
@@ -2534,6 +2560,10 @@ async function loadScheduleFromCloud() {
         previousDate.setDate(previousDate.getDate() - 1);
         previousDateKey = dateToInput(previousDate);
     }
+
+    const rows = scopedYearOnly
+        ? await loadScopedCloudRows("monthly_schedule","plan_date.asc,worker_id.asc",previousDateKey||rangeStart,rangeEnd)
+        : await loadAllMonthlyScheduleRows("*");
 
     let previousLegend = [];
     if (previousDateKey && cloudSession) {
