@@ -1615,6 +1615,11 @@ async function cloudFetch(path, options) {
             && typeof lkmtEditorWorkerId !== 'undefined'
             && !!lkmtEditorWorkerId
             && !round0EditorLocked;
+        const isEditorRound0AtomicWrite = lkmtMethod === 'POST'
+            && /^rpc\/lkmt_save_round0_atomic(\?|$)/.test(path)
+            && typeof lkmtEditorWorkerId !== 'undefined'
+            && !!lkmtEditorWorkerId
+            && !round0EditorLocked;
         const isEditorSpaWrite = lkmtMethod === 'POST'
             && /^vacation_editor_spa_requests\?/.test(path)
             && typeof lkmtEditorWorkerId !== 'undefined'
@@ -1625,7 +1630,7 @@ async function cloudFetch(path, options) {
             && typeof lkmtEditorWorkerId !== 'undefined'
             && !!lkmtEditorWorkerId;
 
-        if (!['GET','HEAD','OPTIONS'].includes(lkmtMethod) && !isReadRpc && !isEditorRequestWrite && !isEditorSpaWrite && !isEditorVacationWrite) {
+        if (!['GET','HEAD','OPTIONS'].includes(lkmtMethod) && !isReadRpc && !isEditorRequestWrite && !isEditorSpaWrite && !isEditorVacationWrite && !isEditorRound0AtomicWrite) {
             console.warn('LKMT WATCH: zápis zablokován:', path);
             return new Response(JSON.stringify({message:'Režim pouze pro čtení'}), {status:403, headers:{'Content-Type':'application/json'}});
         }
