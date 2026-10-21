@@ -9326,7 +9326,7 @@ async function lkmtLoadAccess() {
                     if(!confirm((person.linked?'Přepsat heslo existujícího účtu?':'Vytvořit nový účet?')+'\nPracovník: '+person.worker_name+'\nE-mail: '+person.email))return;
                     setup.disabled=true;
                     try {
-                        const response=await fetch(SUPABASE_URL+'/functions/v1/lkmt-admin-password',{
+                        const response=await fetch(SUPABASE_URL+'/functions/v1/lkmt-admin-password-test',{
                             method:'POST',headers:cloudHeaders(),body:JSON.stringify({worker_id:person.worker_id,password})
                         });
                         const result=await response.json();
