@@ -1609,8 +1609,14 @@ async function cloudFetch(path, options) {
     // V7: non-admin users can read, but cannot write through REST.
     const lkmtMethod = String(options.method || 'GET').toUpperCase();
     if (typeof lkmtIsReadOnlyUser === 'function' && lkmtIsReadOnlyUser()) {
-        const isReadRpc = lkmtMethod === 'POST' && /^rpc\/(lkmt_my_worker_id|lkmt_can_read|lkmt_access_admin)(\?|$)/.test(path);
-        if (!['GET','HEAD','OPTIONS'].includes(lkmtMethod) && !isReadRpc) {
+        const isReadRpc = lkmtMethod === 'POST' && /^rpc\/(lkmt_my_worker_id|lkmt_can_read|lkmt_access_admin|lkmt_is_active_editor)(\?|$)/.test(path);
+        const isEditorRequestWrite = lkmtMethod === 'POST'
+            && /^vacation_round0_editor_requests\?/.test(path)
+            && typeof lkmtEditorWorkerId !== 'undefined'
+            && !!lkmtEditorWorkerId
+            && !round0EditorLocked;
+
+        if (!['GET','HEAD','OPTIONS'].includes(lkmtMethod) && !isReadRpc && !isEditorRequestWrite) {
             console.warn('LKMT WATCH: zápis zablokován:', path);
             return new Response(JSON.stringify({message:'Režim pouze pro čtení'}), {status:403, headers:{'Content-Type':'application/json'}});
         }
@@ -7446,6 +7452,16 @@ async function saveRound0WorkerRecord(year,workerId,requests){
         body:JSON.stringify({planning_year:Number(year),worker_id:String(workerId),requests,updated_at:new Date().toISOString()})
     });
     if(!response.ok)throw new Error("Uložení individuálních požadavků: "+await response.text());
+}
+let lkmtEditorWorkerId=null;
+async function lkmtLoadEditorIdentity(){
+    lkmtEditorWorkerId=null;
+    if(!cloudSession || isVacationAdmin())return;
+    const id=await lkmtFetchMyWorkerId();
+    if(!id)return;
+    const roleResponse=await cloudFetch("rpc/lkmt_is_active_editor",{method:"POST",body:"{}"});
+    if(!roleResponse.ok)throw new Error("Nelze ověřit roli Editora.");
+    if(await roleResponse.json())lkmtEditorWorkerId=String(id);
 }
 async function lkmtFetchMyWorkerId(){
     if(!cloudSession)return null;
