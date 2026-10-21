@@ -9398,7 +9398,7 @@ document.getElementById('lkmtPasswordForm').addEventListener('submit',async e=>{
  if(p.length<12||p!==q){msg.textContent='Heslo musí mít alespoň 12 znaků a obě hodnoty se musí shodovat.';return;}
  const button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;
  try {
-  const r=await fetch(SUPABASE_URL+'/functions/v1/lkmt-change-password',{method:'POST',headers:cloudHeaders(),body:JSON.stringify({password:p})});
+  const r=await fetch(SUPABASE_URL+'/functions/v1/lkmt-change-password-test',{method:'POST',headers:cloudHeaders(),body:JSON.stringify({password:p})});
   const data=await r.json();if(!r.ok)throw Error(data.message||'Změna selhala');
   lkmtPasswordRequired=false;msg.textContent='Heslo bylo změněno.';
   document.getElementById('lkmtPasswordPanel').style.display='none';
