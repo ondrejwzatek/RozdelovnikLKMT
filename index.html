@@ -8319,7 +8319,14 @@ function renderVacationPlanningControl() {
                             const saved=await saveVacationManualChanges();
                             if(saved!==true)throw new Error("Zápis iniciál nebyl dokončen. Požadavek nebyl uložen.");
                         }
-                        await saveRound0WorkerRecord(round0ModalYear,w.id,activeList);
+                        try{
+                            await saveRound0WorkerRecord(round0ModalYear,w.id,activeList);
+                        }catch(recordError){
+                            // Iniciály již mohou být v cloudu; nedovolíme další zápis
+                            // nad nejasným stavem, dokud editor nenačte čerstvá data.
+                            lkmtVacationCloudStateUncertain=true;
+                            throw new Error("Požadavek se nepodařilo uložit, přestože iniciály už mohly být zapsány. Obnovte stránku (F5) a zkontrolujte plán. Detail: "+(recordError&&recordError.message?recordError.message:String(recordError)));
+                        }
                     }catch(err){
                         vacationPlan=backupPlan;
                         vacationManualChanges=backupChanges;
