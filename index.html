@@ -7463,7 +7463,7 @@ async function saveRound0WorkerRecord(year,workerId,requests){
     if(!response.ok)throw new Error("Uložení individuálních požadavků: "+await response.text());
 }
 let lkmtEditorWorkerId=null;
-async async function lkmtLoadEditorIdentity(){
+async function lkmtLoadEditorIdentity(){
     lkmtEditorWorkerId=null;
     if(!cloudSession || isVacationAdmin())return;
     const id=await lkmtFetchMyWorkerId();
