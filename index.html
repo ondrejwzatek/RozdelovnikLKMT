@@ -8243,15 +8243,8 @@ function renderVacationPlanningControl() {
                 if(activeList.some(r=>!r.from||!r.to||!['D','RH'].includes(r.type)||r.to<r.from)){
                     alert("Vyplňte platný termín Od–Do a typ D/RH.");return;
                 }
-                // Check every requested date against the existing weekly VV rules.
-                // This is validation only: editor requests must not mutate vacation cells.
-                for(const request of activeList){
-                    const validation=validateRound0Request(w,request);
-                    if(!validation.ok){
-                        alert(validation.message+"\\n\\nOpravte prosím termín nebo typ požadavku.");
-                        return;
-                    }
-                }
+                // VV se kontroluje až po dočasném uvolnění buněk předchozích
+                // vlastních požadavků: jinak přesun může chybně hlásit plný týden.
                 try{
                     if(Object.keys(vacationManualChanges).length)
                         throw new Error("Nejprve uložte nebo zahoďte rozpracované změny v tabulce dovolených.");
@@ -8308,8 +8301,10 @@ function renderVacationPlanningControl() {
                                 const date=parseDateKey(p.date);
                                 const added=stageVacationManualChange(p.month,p.row,date,p.code);
                                 if(!added.ok)throw new Error(added.message);
-                                if(backupPlan[vacationCellKey(p.month,p.row,date)]!==p.code)
-                                    request._generated.push({month:p.month,row:p.row,date:p.date,code:p.code});
+                                // Evidujeme i znovu vytvořené stejné buňky.
+                                // Porovnání s původním plánem by ztratilo vlastnictví
+                                // při opakovaném uložení beze změny termínu.
+                                request._generated.push({month:p.month,row:p.row,date:p.date,code:p.code});
                             }
                         }
                         if(Object.keys(vacationManualChanges).length){
