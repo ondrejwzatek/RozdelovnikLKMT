@@ -8905,6 +8905,22 @@ async function saveVacationManualChanges() {
         if(!isVacationAdmin() && (!cloudVacationPlanReady || !cloudScheduleReady))
             throw new Error("Cloudový plán ještě není načten. Vyčkejte na synchronizaci.");
         if(cloudSession) {
+            if(!isVacationAdmin()){
+                const rpcChanges=changes.map(function(ch){
+                    const oldEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.original||"").toLocaleLowerCase("cs"));
+                    const newEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.current||"").toLocaleLowerCase("cs"));
+                    return {date:ch.date,row:Number(ch.row)+1,original:String(ch.original||""),current:String(ch.current||""),
+                        old_worker_id:oldEntry?String(oldEntry.worker.id):null,
+                        new_worker_id:newEntry?String(newEntry.worker.id):null,
+                        assignment:newEntry?newEntry.assignmentType:null};
+                });
+                const rpc=await cloudFetch("rpc/lkmt_save_editor_vacation_atomic",{
+                    method:"POST",headers:{"Content-Type":"application/json"},
+                    body:JSON.stringify({p_year:saveYear,p_worker_id:String(lkmtEditorWorkerId),p_changes:rpcChanges})
+                });
+                if(!rpc.ok)throw new Error("Transakční uložení selhalo: "+await rpc.text());
+                lkmtCloudWriteStarted=true;
+            }else{
             for(const ch of changes) {
                 // Po prvním cloudovém požadavku už nelze předpokládat atomický rollback.
                 lkmtCloudWriteStarted=true;
@@ -8921,6 +8937,7 @@ async function saveVacationManualChanges() {
                 }
                 const okVac=await saveVacationCellToCloud(date,ch.row,newEntry||null);
                 if(okVac===false && cloudVacationPlanReady) throw new Error("Nepodařilo se uložit dovolenou.");
+            }
             }
         }
 
