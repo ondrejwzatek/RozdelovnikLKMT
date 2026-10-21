@@ -7426,6 +7426,31 @@ function saveRound0CloudForYear(year){
         }catch(e){ console.error("Uložení 0. kola pro rok "+saveYear+":",e); setCloudStatus("Chyba uložení 0. kola"); }
     },250);
 }
+// V7.5 TEST: each worker's 0-round requests are persisted independently.
+// The existing admin aggregate is retained for backward compatibility until
+// the new editor flow is fully migrated and tested.
+async function saveRound0WorkerRecord(year,workerId,requests){
+    if(!isVacationAdmin())throw new Error("Ukládání požadavků Editora ještě není povoleno.");
+    if(!cloudSession)throw new Error("Není aktivní přihlášení.");
+    const path="vacation_round0_editor_requests?on_conflict=planning_year,worker_id";
+    const response=await cloudFetch(path,{
+        method:"POST",
+        headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+        body:JSON.stringify({
+            planning_year:Number(year),
+            worker_id:String(workerId),
+            requests:requests,
+            updated_at:new Date().toISOString()
+        })
+    });
+    if(!response.ok)throw new Error("Uložení individuálních požadavků: "+await response.text());
+}
+async function readRound0WorkerRecords(year){
+    if(!cloudSession)return [];
+    const response=await cloudFetch("vacation_round0_editor_requests?planning_year=eq."+Number(year)+"&select=worker_id,requests",{method:"GET"});
+    if(!response.ok)throw new Error("Načtení individuálních požadavků: "+await response.text());
+    return await response.json();
+}
 function getRound0Requests(workerId){
     const id=String(workerId), raw=vacationRound0Requests[id];
     if(Array.isArray(raw)) return raw;
