@@ -8289,6 +8289,7 @@ function renderVacationPlanningControl() {
                     }
                     const backupPlan=Object.assign({},vacationPlan);
                     const backupChanges=Object.assign({},vacationManualChanges);
+                    let lkmtRound0AtomicCommitted=false;
                     try{
                         for(const cell of oldGenerated){
                             const date=parseDateKey(cell.date);
@@ -8339,6 +8340,9 @@ function renderVacationPlanningControl() {
                             body:JSON.stringify({p_year:round0ModalYear,p_worker_id:String(w.id),p_requests:activeList,p_changes:changes})
                         });
                         if(!rpc.ok)throw new Error("Transakční uložení selhalo: "+await rpc.text());
+                        // Server již potvrdil transakci. Následná chyba při vykreslení
+                        // nesmí vrátit lokální plán do stavu před úspěšným zápisem.
+                        lkmtRound0AtomicCommitted=true;
                         for(const ch of pending){
                             const date=parseLocalDate(ch.date);
                             const oldEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.original||"").toLocaleLowerCase("cs"));
@@ -8359,8 +8363,14 @@ function renderVacationPlanningControl() {
                         renderVacationPlanningControl();
                         setCloudStatus("Online • uloženo");
                     }catch(err){
-                        vacationPlan=backupPlan;
-                        vacationManualChanges=backupChanges;
+                        if(!lkmtRound0AtomicCommitted){
+                            vacationPlan=backupPlan;
+                            vacationManualChanges=backupChanges;
+                        }else{
+                            lkmtVacationCloudStateUncertain=true;
+                            vacationManualChanges={};
+                            throw new Error("Databáze změnu uložila, ale aktualizace obrazovky selhala. Obnovte stránku (F5). Detail: "+(err&&err.message?err.message:String(err)));
+                        }
                         updateVacationManualButtons();
                         throw err;
                     }
