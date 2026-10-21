@@ -8196,6 +8196,15 @@ function renderVacationPlanningControl() {
                 if(activeList.some(r=>!r.from||!r.to||!['D','RH'].includes(r.type)||r.to<r.from)){
                     alert("Vyplňte platný termín Od–Do a typ D/RH.");return;
                 }
+                // Check every requested date against the existing weekly VV rules.
+                // This is validation only: editor requests must not mutate vacation cells.
+                for(const request of activeList){
+                    const validation=validateRound0Request(w,request);
+                    if(!validation.ok){
+                        alert(validation.message+"\\n\\nOpravte prosím termín nebo typ požadavku.");
+                        return;
+                    }
+                }
                 try{
                     await saveRound0WorkerRecord(round0ModalYear,w.id,activeList);
                     vacationRound0Requests[String(w.id)]=activeList;
