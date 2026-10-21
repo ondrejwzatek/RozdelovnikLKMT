@@ -8310,6 +8310,11 @@ function renderVacationPlanningControl() {
                                 request._generated.push({month:p.month,row:p.row,date:p.date,code:p.code});
                             }
                         }
+                        // Znovu ověřit zámek těsně před zápisem: během otevřeného okna
+                        // mohl administrátor 0. kolo uzamknout.
+                        await loadRound0EditorLock(round0ModalYear);
+                        if(round0EditorLocked)throw new Error("0. kolo bylo mezitím uzamčeno. Změny nebyly uloženy.");
+                        if(Number(YEAR)!==round0ModalYear)throw new Error("Rok se během úpravy změnil.");
                         if(Object.keys(vacationManualChanges).length){
                             const saved=await saveVacationManualChanges();
                             if(saved!==true)throw new Error("Zápis iniciál nebyl dokončen. Požadavek nebyl uložen.");
