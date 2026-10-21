@@ -7374,6 +7374,7 @@ let vacationRound0Generated = loadRound0GeneratedForYear(YEAR);
 async function loadRound0CloudForYear(year){
     vacationRound0Requests=loadRound0RequestsForYear(year);
     vacationRound0Generated=loadRound0GeneratedForYear(year);
+    await loadRound0EditorLock(year);
     if(!cloudSession) return;
     try{
         const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(round0CloudKey(year))+"&select=setting_value",{method:"GET"});
@@ -7387,6 +7388,28 @@ async function loadRound0CloudForYear(year){
             saveData(round0GeneratedYearKey(year),vacationRound0Generated);
         }
     }catch(e){ console.error("Načtení 0. kola pro rok "+year+":",e); }
+}
+// V7.5 TEST: per-year lock for editor requests; administrators remain unrestricted.
+const round0LockKey=year=>"vacation_round0_lock_"+Number(year);
+let round0EditorLocked=true; // fail closed until the cloud state has been read
+async function loadRound0EditorLock(year){
+    round0EditorLocked=true;
+    if(!cloudSession)return;
+    const response=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(round0LockKey(year))+"&select=setting_value",{method:"GET"});
+    if(!response.ok)throw new Error("Načtení zámku 0. kola: "+await response.text());
+    const rows=await response.json();
+    round0EditorLocked=!(rows.length && rows[0].setting_value && rows[0].setting_value.locked===false);
+}
+async function setRound0EditorLock(locked){
+    if(!isVacationAdmin())throw new Error("Pouze administrátor může měnit zámek 0. kola.");
+    const year=YEAR;
+    const response=await cloudFetch("app_settings?on_conflict=setting_key",{
+        method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+        body:JSON.stringify({setting_key:round0LockKey(year),setting_value:{locked:!!locked},updated_at:new Date().toISOString()})
+    });
+    if(!response.ok)throw new Error("Uložení zámku 0. kola: "+await response.text());
+    await loadRound0EditorLock(year);
+    renderVacationPlanningControl();
 }
 let round0CloudSaveTimer=null;
 function saveRound0CloudForYear(year){
@@ -8040,6 +8063,19 @@ function renderVacationPlanningControl() {
     const zero=document.createElement("div"); zero.className="vpc-round vpc-round-zero";
     const zhead=document.createElement("div"); zhead.className="vpc-round-head";
     zhead.innerHTML="<span>0. kolo – požadavky</span><small>bez pořadí</small>"; zero.appendChild(zhead);
+    if(admin){
+        const lockButton=document.createElement("button");
+        lockButton.type="button";
+        lockButton.className="button";
+        lockButton.textContent=round0EditorLocked?"🔓 Odemknout 0. kolo":"🔒 Zamknout 0. kolo";
+        lockButton.onclick=async()=>{
+            lockButton.disabled=true;
+            try{await setRound0EditorLock(!round0EditorLocked);}
+            catch(error){alert(error.message);lockButton.disabled=false;}
+        };
+        zhead.appendChild(lockButton);
+    }
+
     const zt=document.createElement("table"); zt.className="vpc-order-table";
     zt.innerHTML="<thead><tr><th>#</th><th>Pracovník</th><th>Požadavky</th><th>D</th><th>RH</th><th>+</th></tr></thead>";
     const ztb=document.createElement("tbody");
