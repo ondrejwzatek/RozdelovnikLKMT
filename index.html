@@ -9327,6 +9327,8 @@ function lkmtV7IsNavigation(el){
     return !!(lkmtEditorWorkerId && !round0EditorLocked &&
       requestModal.dataset.lkmtWorkerId===String(lkmtEditorWorkerId));
   }
+  // Opening the request detail never writes data; authorization is checked inside the modal.
+  if(el.matches('button.vpc-request-add'))return true;
   if(lkmtV7NavigationIds.has(el.id))return true;
   if(el.matches('button,a,[role=button]')){
     const text=(el.textContent||'').trim().replace(/^[^\p{L}\d]+/u,'').trim();
