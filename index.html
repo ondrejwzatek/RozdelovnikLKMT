@@ -1616,9 +1616,7 @@ async function cloudFetch(path, options) {
             && !!lkmtEditorWorkerId
             && !round0EditorLocked;
         const isEditorRound0AtomicWrite = lkmtMethod === 'POST'
-            && /^rpc\/(lkmt_save_round0_atomic|lkmt_save_editor_vacation_atomic)(\?|$)/.test(path)
-            && typeof lkmtEditorWorkerId !== 'undefined'
-            && !!lkmtEditorWorkerId;
+            && /^rpc\/(lkmt_save_round0_atomic|lkmt_save_editor_vacation_atomic)(\?|$)/.test(path);
         const isEditorSpaWrite = lkmtMethod === 'POST'
             && /^vacation_editor_spa_requests\?/.test(path)
             && typeof lkmtEditorWorkerId !== 'undefined'
