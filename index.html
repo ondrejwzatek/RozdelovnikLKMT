@@ -2022,9 +2022,14 @@ async function loadYearProfileFromCloud(year){
     return false;
 }
 async function switchDisplayedYear(newYear){
+    const __yearSwitchStart=performance.now();
+    const __yearSwitchSteps=[];
+    let __yearSwitchLast=__yearSwitchStart;
+    function __yearSwitchMark(label){const now=performance.now();__yearSwitchSteps.push({krok:label,ms:Math.round(now-__yearSwitchLast)});__yearSwitchLast=now;}
     newYear=Math.max(2000,Math.min(2100,Number(newYear)||YEAR));
     if(newYear===YEAR) return;
     try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
+    __yearSwitchMark('Uložení předchozího profilu');
     cloudHydrationComplete=false;
     /* Kopie pracovníků slouží jako výchozí stav pouze při založení roku,
        který ještě vlastní profil nemá. Jakmile profil existuje, načte se jeho
@@ -2036,6 +2041,7 @@ async function switchDisplayedYear(newYear){
     loadVacationPlanLocalForYear(YEAR);
     // Lázeňské přidělení pracovníků se načítá samostatně pro právě zvolený rok.
     await loadSpaRequestsCloudForYear(YEAR);
+    __yearSwitchMark('Lázně');
     let loaded=false;
     try{ loaded=await loadYearProfileFromCloud(YEAR); }
     catch(e){
@@ -2044,6 +2050,7 @@ async function switchDisplayedYear(newYear){
         alert("Roční profil "+YEAR+" se nepodařilo načíst. Nebude nahrazen lokálními daty.");
         return;
     }
+    __yearSwitchMark('Načtení profilu');
     if(!loaded){
         applyYearProfile({year:YEAR,workers:workersFromPreviousView,periodSetup:defaultPeriodSetupForYear(YEAR),vacationVV:{},vacationKoef:{},vacationWeekNote:{},vacationControl:Object.assign(defaultVacationControl(),{planningYear:YEAR}),manualStatistics:{},annualStatisticsMonths:{},spaCatalog:[]});
         try{ await saveCurrentYearProfileToCloud(); }catch(e){ console.error(e); }
@@ -2051,22 +2058,27 @@ async function switchDisplayedYear(newYear){
         /* existující roční profil už obsahuje (nebo po migraci dostane) vlastní pracovníky */
     }
     try{await importIncomingTowerPriority(YEAR);}catch(e){console.error("Převod věžáků",e);}
+    __yearSwitchMark('Převod věžáků');
     /* Legenda je od v88 samostatná pro každý rok. 2026 a 2027 se při prvním
        otevření založí z původní společné legendy, ostatní roky jsou prázdné. */
     try{
         legend=await readAnnualLegend(YEAR,true);
         localStorage.setItem("rozdelovnik_legend",JSON.stringify(legend));
     }catch(e){ console.error(e); setCloudStatus("Chyba načítání legendy "+YEAR); }
+    __yearSwitchMark('Legenda');
     /* Produkce: po změně rozdělovníkového roku znovu sestavíme schedule přes
        hranice a legendu právě zvoleného roku. */
     if(cloudSession){
         try{ await loadScheduleFromCloud(); }catch(e){ console.error(e); setCloudStatus("Chyba načítání měsíčního rozdělovníku"); }
     }
+    __yearSwitchMark('Měsíční rozpis');
     // Teprve teď mapujeme vacation_plan podle období právě zvoleného roku.
     if(cloudSession){
         try{ await loadVacationPlanFromCloud(); }catch(e){ console.error(e); setCloudStatus("Chyba načítání plánu dovolených"); }
     }
+    __yearSwitchMark('Plán dovolených');
     await loadRound0CloudForYear(YEAR);
+    __yearSwitchMark('Nulté kolo');
     syncYearStartControls(); renderMonths();
     if(typeof refreshVacationYearControls==="function") refreshVacationYearControls();
     const workersTitle=document.getElementById("workersPageTitle");
@@ -2074,6 +2086,10 @@ async function switchDisplayedYear(newYear){
     if(document.getElementById("workersPage") && !document.getElementById("workersPage").classList.contains("hidden")) renderWorkersManagement();
     if(typeof renderVacationPlanningPage==="function" && document.getElementById("vacationPlanningPage") && !document.getElementById("vacationPlanningPage").classList.contains("hidden")) renderVacationPlanningPage();    if(document.getElementById("spaInfoPage") && !document.getElementById("spaInfoPage").classList.contains("hidden")) renderSpaInfoPage();
     cloudHydrationComplete=true;
+    __yearSwitchMark('Vykreslení');
+    console.group('[LKMT TEST] Přepnutí roku: '+YEAR+' ('+Math.round(performance.now()-__yearSwitchStart)+' ms)');
+    console.table(__yearSwitchSteps);
+    console.groupEnd();
 }
 async function loadPeriodsFromCloud() {
     setCloudStatus("Načítám období…");
