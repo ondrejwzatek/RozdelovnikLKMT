@@ -1472,8 +1472,8 @@ h1 {
    SUPABASE CLOUD - VER4
    První online krok: přihlášení + centrální Legenda směn.
 ===================================================== */
-const SUPABASE_URL = "https://xqyjszegngykcecuuvjt.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_yrwcJsAJlA6zHvfVbrRNgw_ufbC81_D";
+const SUPABASE_URL = "https://fuzdntjsidmankpflqjq.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_wMuEnP7BgLlMru9arfM4aA_TMVMPMHQ";
 const CLOUD_SESSION_KEY = "rozdelovnik_supabase_session";
 const ADMIN_EMAILS = ["ondrej.wzatek@seznam.cz"];
 function isVacationAdmin() {
@@ -9480,7 +9480,7 @@ async function lkmtLoadAccess() {
                     if(!confirm((person.linked?'Přepsat heslo existujícího účtu?':'Vytvořit nový účet?')+'\nPracovník: '+person.worker_name+'\nE-mail: '+person.email))return;
                     setup.disabled=true;
                     try {
-                        const response=await fetch(SUPABASE_URL+'/functions/v1/lkmt-admin-password-test',{
+                        const response=await fetch(SUPABASE_URL+'/functions/v1/lkmt-admin-password',{
                             method:'POST',headers:cloudHeaders(),body:JSON.stringify({worker_id:person.worker_id,password})
                         });
                         const result=await response.json();
@@ -9552,7 +9552,7 @@ document.getElementById('lkmtPasswordForm').addEventListener('submit',async e=>{
  if(p.length<12||p!==q){msg.textContent='Heslo musí mít alespoň 12 znaků a obě hodnoty se musí shodovat.';return;}
  const button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;
  try {
-  const r=await fetch(SUPABASE_URL+'/functions/v1/lkmt-change-password-test',{method:'POST',headers:cloudHeaders(),body:JSON.stringify({password:p})});
+  const r=await fetch(SUPABASE_URL+'/functions/v1/lkmt-change-password',{method:'POST',headers:cloudHeaders(),body:JSON.stringify({password:p})});
   const data=await r.json();if(!r.ok)throw Error(data.message||'Změna selhala');
   lkmtPasswordRequired=false;msg.textContent='Heslo bylo změněno.';
   document.getElementById('lkmtPasswordPanel').style.display='none';
