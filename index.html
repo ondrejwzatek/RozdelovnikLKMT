@@ -7393,11 +7393,14 @@ async function loadRound0CloudForYear(year){
 const round0LockKey=year=>"vacation_round0_lock_"+Number(year);
 let round0EditorLocked=true; // fail closed until the cloud state has been read
 async function loadRound0EditorLock(year){
-    round0EditorLocked=true;
+    const requestedYear=Number(year);
+    round0EditorLocked=true; // no edits before confirmed cloud state
     if(!cloudSession)return;
-    const response=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(round0LockKey(year))+"&select=setting_value",{method:"GET"});
+    const response=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(round0LockKey(requestedYear))+"&select=setting_value",{method:"GET"});
     if(!response.ok)throw new Error("Načtení zámku 0. kola: "+await response.text());
     const rows=await response.json();
+    // Ignore a delayed response if the user has switched to a different year.
+    if(Number(YEAR)!==requestedYear)return;
     round0EditorLocked=!(rows.length && rows[0].setting_value && rows[0].setting_value.locked===false);
 }
 async function setRound0EditorLock(locked){
