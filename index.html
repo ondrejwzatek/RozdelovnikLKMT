@@ -8918,7 +8918,7 @@ async function saveVacationManualChanges() {
                     method:"POST",headers:cloudHeaders({"Content-Type":"application/json"}),
                     body:JSON.stringify({p_year:saveYear,p_worker_id:String(lkmtEditorWorkerId),p_changes:rpcChanges})
                 });
-                if(!rpc.ok)throw new Error("Transakční uložení selhalo: "+await rpc.text());
+                if(!rpc.ok)throw new Error("Editor RPC přímé volání HTTP "+rpc.status+": "+await rpc.text());
                 lkmtCloudWriteStarted=true;
             }else{
             for(const ch of changes) {
