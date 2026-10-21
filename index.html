@@ -2526,7 +2526,7 @@ async function loadAllMonthlyScheduleRows(selectExpr) {
 
 // TEST V7.4.1: read only rows in the distribution-year window.
 async function loadScopedCloudRows(table, order, rangeStart, rangeEnd) {
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(rangeStart) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(rangeEnd) || rangeStart > rangeEnd) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rangeStart) || !/^\d{4}-\d{2}-\d{2}$/.test(rangeEnd) || rangeStart > rangeEnd) {
         throw new Error("Neplatný rozsah dat pro rok "+YEAR);
     }
     const all=[], pageSize=1000;
