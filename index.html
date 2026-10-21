@@ -8233,7 +8233,9 @@ function renderVacationPlanningControl() {
         const add=document.createElement("button"); add.type="button"; add.className="vpc-request-new"; add.textContent="+ Přidat další požadavek"; actions.appendChild(add); if(lkmtRequestViewOnly)add.remove();
         const hint=document.createElement("span"); hint.className="vpc-request-hint"; hint.textContent="Dny = Po–Pá • požadavek se zapíše jen pokud celý projde limitem VV"; actions.appendChild(hint); modal.appendChild(actions);
         add.addEventListener("click",function(){ list.push({from:"",to:"",type:""}); ensureRound0RequestIds(w.id,list); redraw(); });
+        let lkmtRound0SaveInProgress=false;
         async function finish(){
+            if(lkmtRound0SaveInProgress)return;
             if(lkmtRequestViewOnly){backdrop.remove();return;}
             ensureRound0RequestIds(w.id,list);
             if(lkmtEditorOwnRound0){
@@ -8245,6 +8247,7 @@ function renderVacationPlanningControl() {
                 }
                 // VV se kontroluje až po dočasném uvolnění buněk předchozích
                 // vlastních požadavků: jinak přesun může chybně hlásit plný týden.
+                lkmtRound0SaveInProgress=true;
                 try{
                     if(Object.keys(vacationManualChanges).length)
                         throw new Error("Nejprve uložte nebo zahoďte rozpracované změny v tabulce dovolených.");
@@ -8322,6 +8325,7 @@ function renderVacationPlanningControl() {
                     saveData(round0YearKey(YEAR),vacationRound0Requests);
                     backdrop.remove();renderVacationPlanning();
                 }catch(error){alert(error.message);}
+                finally{lkmtRound0SaveInProgress=false;}
                 return;
             }
             const activeList=list.filter(function(r){return r.from||r.to||r.type;});
@@ -8749,6 +8753,7 @@ async function saveVacationManualChanges() {
     const changes=Object.values(vacationManualChanges);
     if(!changes.length) return;
     const saveYear=Number(YEAR);
+    const lkmtScheduleBeforeSave=Object.assign({},schedule);
     const entries=getVacationCodeEntries();
     // Recheck ownership at commit time, not only when a dropdown was opened.
     if(!isVacationAdmin()){
@@ -8866,6 +8871,8 @@ async function saveVacationManualChanges() {
         setCloudStatus(cloudSession ? "Online • uloženo" : "Uloženo lokálně");
         return true;
     } catch(err) {
+        // Obnovit lokální měsíční rozdělovník, pokud cloudové ukládání selže.
+        schedule=lkmtScheduleBeforeSave;
         console.error("Uložení ručních změn dovolených:",err);
         updateVacationManualButtons();
         alert("Uložení selhalo: "+(err&&err.message?err.message:"Neznámá chyba")+". Změny zůstávají připravené k opakování.");
