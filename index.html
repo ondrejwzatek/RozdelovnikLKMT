@@ -1025,6 +1025,11 @@ h1 {
 #cloudStatusBar.status-saving #cloudStatusDot { background: #d18b00; }
 #cloudStatusBar.status-error { border-color: #c62828; }
 #cloudStatusBar.status-error #cloudStatusDot { background: #c62828; }
+#cloudStatusIdentity { grid-column: 3; font-size: 11px; font-weight: 600; color: #526070; text-align: right; max-width: 155px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cloudStatusBar { display: grid; grid-template-columns: 10px minmax(0,1fr) auto; column-gap: 7px; row-gap: 2px; max-width: calc(100vw - 32px); }
+#cloudStatusDot { grid-column: 1; grid-row: 1; }
+#cloudStatusText { grid-column: 2; grid-row: 1; }
+#cloudLogoutBtn { grid-column: 3; grid-row: 1; }
 #cloudLogoutBtn { margin-left: 5px; border: 0; background: transparent; text-decoration: underline; cursor: pointer; font-size: 12px; font-weight: 600; }
 
 
@@ -1105,7 +1110,7 @@ h1 {
     <div id="cloudLoginError"></div>
   </div>
 </div>
-<div id="cloudStatusBar" class="hidden"><span id="cloudStatusDot" aria-hidden="true"></span><span id="cloudStatusText">Online</span><button id="cloudLogoutBtn" type="button">Odhlásit</button></div>
+<div id="cloudStatusBar" class="hidden"><span id="cloudStatusDot" aria-hidden="true"></span><span id="cloudStatusText">Online</span><button id="cloudLogoutBtn" type="button">Odhlásit</button><span id="cloudStatusIdentity" title="Přihlášený uživatel">Přihlášen</span></div>
 
 
 <div class="container">
@@ -1601,6 +1606,15 @@ async function cloudRefreshSession() {
 
 async function cloudFetch(path, options) {
     options = options || {};
+    // V7: non-admin users can read, but cannot write through REST.
+    const lkmtMethod = String(options.method || 'GET').toUpperCase();
+    if (typeof lkmtIsReadOnlyUser === 'function' && lkmtIsReadOnlyUser()) {
+        const isReadRpc = lkmtMethod === 'POST' && /^rpc\/(lkmt_my_worker_id|lkmt_can_read|lkmt_access_admin)(\?|$)/.test(path);
+        if (!['GET','HEAD','OPTIONS'].includes(lkmtMethod) && !isReadRpc) {
+            console.warn('LKMT WATCH: zápis zablokován:', path);
+            return new Response(JSON.stringify({message:'Režim pouze pro čtení'}), {status:403, headers:{'Content-Type':'application/json'}});
+        }
+    }
     options.headers = cloudHeaders(options.headers);
     let r = await fetch(SUPABASE_URL + "/rest/v1/" + path, options);
     if (r.status === 401 && await cloudRefreshSession()) {
@@ -2627,19 +2641,38 @@ async function saveScheduleCellToCloud(date, workerId, legendId, source) {
     }
 }
 
+async function lkmtUpdateSignedInName() {
+    const label=document.getElementById('cloudStatusIdentity');
+    if(!label || !cloudSession) return;
+    const email=String(cloudSession.user?.email||'').trim().toLowerCase();
+    label.textContent='Přihlášen: '+(email||'uživatel');
+    label.title=email;
+    try {
+        if(typeof isVacationAdmin==='function' && isVacationAdmin()) {
+            label.textContent='Přihlášen: Administrátor';
+            return;
+        }
+        const r=await cloudFetch('rpc/lkmt_my_worker_id',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+        if(!r.ok) return;
+        const id=await r.json();
+        const worker=(Array.isArray(workers)?workers:[]).find(w=>String(w.id)===String(id));
+        if(worker && worker.name) { label.textContent='Přihlášen: '+worker.name;label.title=worker.name+' ('+email+')'; }
+    } catch(e) { console.warn('Jméno přihlášeného nelze načíst',e); }
+}
+
 async function initCloud() {
     const overlay = document.getElementById("cloudLoginOverlay");
     const status = document.getElementById("cloudStatusBar");
     try { cloudSession = JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY) || "null"); } catch(e) { cloudSession = null; }
     if (cloudSession && cloudSession.refresh_token && await cloudRefreshSession()) {
-        overlay.classList.add("hidden"); status.classList.remove("hidden");
+        overlay.classList.add("hidden"); status.classList.remove("hidden"); lkmtUpdateSignedInName();
         try {
             /* Jediný databázový zdroj pracovníků: app_settings.year_profile_YYYY. */
             let hasYearProfile = await loadYearProfileFromCloud(YEAR);
             if (!hasYearProfile) {
                 throw new Error("Rok "+YEAR+" nemá profil v app_settings. Pracovníky nelze načíst z globální tabulky workers. Založte rok kopírováním pracovníků z jiného roku.");
             }
-            loadVacationPlanLocalForYear(YEAR); await loadVacationPlanFromCloud(); await loadRound0CloudForYear(YEAR); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); cloudHydrationComplete=true; } catch(e) { cloudHydrationComplete=false; console.error(e); setCloudStatus("Chyba připojení"); }
+            loadVacationPlanLocalForYear(YEAR); await loadVacationPlanFromCloud(); await loadRound0CloudForYear(YEAR); await loadScheduleFromCloud(); await loadVacationControlFromCloud(); cloudHydrationComplete=true; lkmtUpdateSignedInName(); } catch(e) { cloudHydrationComplete=false; console.error(e); setCloudStatus("Chyba připojení"); }
     }
 }
 
@@ -2649,7 +2682,7 @@ document.addEventListener("DOMContentLoaded", function() {
         try {
             await cloudLogin(document.getElementById("cloudEmail").value.trim(), document.getElementById("cloudPassword").value);
             document.getElementById("cloudLoginOverlay").classList.add("hidden");
-            document.getElementById("cloudStatusBar").classList.remove("hidden");
+            document.getElementById("cloudStatusBar").classList.remove("hidden"); lkmtUpdateSignedInName();
             /* Jediný databázový zdroj pracovníků: app_settings.year_profile_YYYY. */
             let hasYearProfile = await loadYearProfileFromCloud(YEAR);
             if (!hasYearProfile) {
@@ -2660,7 +2693,7 @@ document.addEventListener("DOMContentLoaded", function() {
             await loadRound0CloudForYear(YEAR);
             await loadScheduleFromCloud();
             await loadVacationControlFromCloud();
-            cloudHydrationComplete=true;
+            cloudHydrationComplete=true; lkmtUpdateSignedInName();
         } catch(e) { cloudHydrationComplete=false; error.textContent = e.message; }
     });
     document.getElementById("cloudPassword").addEventListener("keydown", function(e) { if (e.key === "Enter") document.getElementById("cloudLoginBtn").click(); });
@@ -4919,7 +4952,15 @@ function renderWorkersManagement() {
                 if (currentMonth !== null) renderTable();
             });
 
-            colorCell.appendChild(colorInput);
+            if(typeof lkmtIsReadOnlyUser==="function" && lkmtIsReadOnlyUser()){
+                const swatch=document.createElement("span");
+                swatch.className="lkmt-v73-color-swatch";
+                swatch.style.backgroundColor=getWorkerColor(worker,index);
+                swatch.title="Barva pracovníka (jen prohlížení)";
+                colorCell.appendChild(swatch);
+            }else{
+                colorCell.appendChild(colorInput);
+            }
             row.appendChild(colorCell);
 
 
@@ -7963,6 +8004,7 @@ function renderVacationPlanningControl() {
         let list=getRound0Requests(w.id).map(function(x){return Object.assign({from:"",to:"",type:""},x);});
         if(!list.length) list=[{from:"",to:"",type:""}];
         ensureRound0RequestIds(w.id,list);
+        const lkmtRequestViewOnly=lkmtIsReadOnlyUser();
         const backdrop=document.createElement("div"); backdrop.className="vpc-request-modal-backdrop";
         const modal=document.createElement("div"); modal.className="vpc-request-modal"; backdrop.appendChild(modal);
         const head=document.createElement("div"); head.className="vpc-request-modal-head";
@@ -7990,11 +8032,17 @@ function renderVacationPlanningControl() {
             });
         }
         redraw();
+        if(lkmtRequestViewOnly){
+            // Pouze čtení: zobrazit existující termíny, žádné ukládání ani generování buněk.
+            modal.querySelectorAll('input,select').forEach(el=>{el.disabled=true;});
+            modal.querySelectorAll('button.vpc-request-remove').forEach(el=>{el.remove();});
+        }
         const actions=document.createElement("div"); actions.className="vpc-request-modal-actions";
-        const add=document.createElement("button"); add.type="button"; add.className="vpc-request-new"; add.textContent="+ Přidat další požadavek"; actions.appendChild(add);
+        const add=document.createElement("button"); add.type="button"; add.className="vpc-request-new"; add.textContent="+ Přidat další požadavek"; actions.appendChild(add); if(lkmtRequestViewOnly)add.remove();
         const hint=document.createElement("span"); hint.className="vpc-request-hint"; hint.textContent="Dny = Po–Pá • požadavek se zapíše jen pokud celý projde limitem VV"; actions.appendChild(hint); modal.appendChild(actions);
         add.addEventListener("click",function(){ list.push({from:"",to:"",type:""}); ensureRound0RequestIds(w.id,list); redraw(); });
         function finish(){
+            if(lkmtRequestViewOnly){backdrop.remove();return;}
             ensureRound0RequestIds(w.id,list);
             const activeList=list.filter(function(r){return r.from||r.to||r.type;});
             const result=applyAllRound0RequestsForWorker(w,activeList);
@@ -8815,7 +8863,19 @@ function renderVacationMonth(month, table) {
         dates.forEach(function(date){
             const wi=dateWeek[makeDateKey(date)], vv=Number(vacationVV[vacationWeekKey(month,wi)]||0); const weekday=date.getDay()>=1&&date.getDay()<=5; const active=weekday&&row<vv; const adminOverride=weekday&&row>=vv&&isVacationAdmin(); const editable=active||adminOverride;
             const td=document.createElement("td"); const isWeekend=date.getDay()===0||date.getDay()===6; const isHoliday=holidays.includes(dateToInput(date)); if(isHoliday){td.classList.add(isWeekend?"vac-holiday-weekend":"vac-holiday");td.title="Státní svátek";}else if(isWeekend){td.classList.add("vac-weekend");} if(row>=vv){td.classList.add("vac-inactive");} if(adminOverride) td.classList.add("vacation-admin-override");if(date.getDay()===1||date===dates[0])td.classList.add("vac-week-start");
-            if(editable){
+            // TEST V7.3: Čtení uložených kódů je nezávislé na VV.
+            // Admin zachovává původní editaci; Watch/Editor zatím pouze čtou.
+            if(!isVacationAdmin()){
+                const code=String(vacationPlan[vacationCellKey(month,row,date)]||"").trim();
+                if(code){
+                    const display=document.createElement("span");
+                    display.className="lkmt-v73-code-display";
+                    display.textContent=code;
+                    const found=entries.find(e=>e.code.toLocaleLowerCase("cs")===code.toLocaleLowerCase("cs"));
+                    if(found)applyWorkerColors(display,found.worker);
+                    td.appendChild(display);
+                }
+            } else if(editable){
                 const input=document.createElement("select"); input.className="vacation-code"; const key=vacationCellKey(month,row,date);
                 const currentValue=vacationPlan[key]||"";
                 const usedWorkerIds=new Set();
@@ -8880,5 +8940,302 @@ document.addEventListener("DOMContentLoaded",function(){
 });
 </script>
 
+
+<!-- TEST: Správa přístupů; role editor/watch zatím nesmí dostat účet do dokončení RLS -->
+<div id="lkmtAccessPanel" style="display:none;position:fixed;inset:0;z-index:99999;background:#0009;overflow:auto;padding:4vh 3vw">
+  <section style="max-width:1100px;margin:auto;background:white;color:#222;border-radius:12px;padding:20px;box-shadow:0 10px 40px #0005">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:15px">
+      <h2>Správa přístupů – TEST</h2>
+      <button class="button" onclick="document.getElementById('lkmtAccessPanel').style.display='none'">Zavřít</button>
+    </div>
+    <p style="color:#a33;font-weight:bold">TEST: Administrátor zadá e-mail a roli, uloží a potom vytvoří účet s počátečním heslem. U propojeného účtu může nastavit nové počáteční heslo. Zkoušejte pouze s vlastními testovacími adresami. Editor zatím nesmí zapisovat.</p>
+    <p id="lkmtAccessStatus" role="status"></p>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse" id="lkmtAccessTable">
+      <thead><tr><th>Pracovník</th><th>E-mail</th><th>Role</th><th>Aktivní</th><th>Akce</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+</div>
+
+<script>
+async function lkmtAccessRpc(name, payload) {
+    let response=await cloudFetch('rpc/'+name, {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload||{})
+    });
+    if(!response.ok) throw new Error((await response.text()).slice(0,600));
+    return response.status===204 ? null : await response.json();
+}
+async function lkmtShowAccess() {
+    if(!isVacationAdmin()) { alert('Pouze administrátor.'); return; }
+    document.getElementById('lkmtAccessPanel').style.display='block';
+    await lkmtLoadAccess();
+}
+async function lkmtLoadAccess() {
+    const status=document.getElementById('lkmtAccessStatus');
+    status.textContent='Načítám pracovníky...';
+    const body=document.querySelector('#lkmtAccessTable tbody');
+    body.replaceChildren();
+    try {
+        const assigned=await lkmtAccessRpc('lkmt_access_list',{});
+        const byId=new Map(assigned.map(p=>[String(p.worker_id),p]));
+        const current=Array.isArray(workers)?workers:[];
+        const ids=new Set(current.map(w=>String(w.id)));
+        const data=[
+            ...current.map(w=>({
+                ...(byId.get(String(w.id))||{}),
+                worker_id:String(w.id),
+                worker_name:String(w.name||w.id),
+                in_current_year:true
+            })),
+            ...assigned.filter(p=>!ids.has(String(p.worker_id))).map(p=>({...p,in_current_year:false}))
+        ];
+        for(const person of data) {
+            const tr=document.createElement('tr');
+            tr.style.borderTop='1px solid #ddd';
+            const tdName=document.createElement('td');
+            tdName.textContent=person.worker_name+(person.in_current_year?'':' (mimo rok '+YEAR+')');
+            tdName.style.padding='8px';
+            const tdEmail=document.createElement('td');
+            const email=document.createElement('input');
+            email.type='email'; email.value=person.email||''; email.placeholder='pracovnik@example.cz';
+            email.style.width='min(290px,100%)'; tdEmail.append(email);
+            const tdRole=document.createElement('td');
+            const role=document.createElement('select');
+            for(const r of ['editor','watch']){
+                const opt=document.createElement('option');opt.value=r;opt.textContent=r==='editor'?'Editor':'Watch';role.append(opt);
+            }
+            role.value=person.role==='watch'?'watch':'editor';
+            tdRole.append(role);
+            const tdActive=document.createElement('td');
+            const active=document.createElement('input');active.type='checkbox';active.checked=person.active!==false;tdActive.append(active);
+            const tdAction=document.createElement('td');
+            const save=document.createElement('button');save.className='button';save.textContent='Uložit';
+            save.onclick=async()=>{
+                save.disabled=true;
+                try {
+                    await lkmtAccessRpc('lkmt_access_save',{
+                        p_worker_id:person.worker_id,
+                        p_email:email.value.trim().toLowerCase(),
+                        p_role:role.value,
+                        p_active:active.checked
+                    });
+                    status.textContent='Uloženo: '+person.worker_name+' (evidence; založení účtu je samostatný krok).';
+                } catch(e){status.textContent='Chyba: '+e.message;}
+                finally{save.disabled=false;}
+            };
+            tdAction.append(save);
+            if(person.email && person.active) {
+                const setup=document.createElement('button');
+                setup.type='button';setup.className='button';
+                setup.textContent=person.linked?'Nastavit počáteční heslo (TEST)':'Založit účet s heslem (TEST)';
+                setup.style.marginLeft='6px';
+                setup.onclick=async()=>{
+                    if(email.value.trim().toLowerCase()!==String(person.email).trim().toLowerCase() || role.value!==person.role || active.checked!==person.active) {
+                        status.textContent='Nejprve uložte změny e-mailu, role a aktivace tlačítkem Uložit.';return;
+                    }
+                    const password=prompt('Zadejte počáteční heslo pro '+person.worker_name+' (minimálně 12 znaků).\nHeslo nebude uloženo v Rozdělovníku.');
+                    if(password===null)return;
+                    if(password.length<12){status.textContent='Heslo musí mít alespoň 12 znaků.';return;}
+                    if(!confirm((person.linked?'Přepsat heslo existujícího účtu?':'Vytvořit nový účet?')+'\nPracovník: '+person.worker_name+'\nE-mail: '+person.email))return;
+                    setup.disabled=true;
+                    try {
+                        const response=await fetch(SUPABASE_URL+'/functions/v1/lkmt-admin-password',{
+                            method:'POST',headers:cloudHeaders(),body:JSON.stringify({worker_id:person.worker_id,password})
+                        });
+                        const result=await response.json();
+                        if(!response.ok)throw new Error(result.message||'Operace selhala');
+                        await lkmtLoadAccess();
+                        document.getElementById('lkmtAccessStatus').textContent=result.message;
+                    }catch(e){status.textContent='Účet: '+e.message;}
+                    finally{setup.disabled=false;}
+                };
+                tdAction.append(setup);
+            }
+            if(person.linked) {
+                const info=document.createElement('span');info.textContent=' Účet propojen';info.style.color='#276738';tdAction.append(info);
+            }
+            tr.append(tdName,tdEmail,tdRole,tdActive,tdAction);body.append(tr);
+        }
+        status.textContent='Rok '+YEAR+': '+current.length+' pracovníků; '+(data.length-current.length)+' účtů mimo aktuální rok. Prázdný e-mail při uložení zruší přiřazení.';
+    } catch(e){status.textContent='Načtení selhalo: '+e.message;}
+}
+document.addEventListener('DOMContentLoaded',()=>{
+    const target=document.querySelector('button[onclick="showWorkersPage()"]');
+    if(!target)return;
+    const btn=document.createElement('button');
+    btn.type='button';btn.className='button button-blue';
+    btn.textContent='🔐 Správa přístupů (TEST)';
+    btn.onclick=lkmtShowAccess;
+    target.insertAdjacentElement('afterend',btn);
+    const update=()=>{btn.style.display=isVacationAdmin()?'':'none';};
+    update();
+    document.addEventListener('click',update,true);
+});
+</script>
+
+<div id="lkmtPasswordPanel" style="display:none;position:fixed;inset:0;z-index:100001;background:#0009;padding:7vh 3vw;overflow:auto">
+  <section style="max-width:440px;margin:auto;background:#fff;color:#222;padding:24px;border-radius:12px">
+    <h2>Změna vlastního hesla – TEST</h2>
+    <p id="lkmtPasswordInfo">Zadejte nové heslo (alespoň 12 znaků).</p>
+    <form id="lkmtPasswordForm">
+      <label>Nové heslo <input type="password" id="lkmtPassword1" autocomplete="new-password" minlength="12" required style="display:block;width:100%;padding:9px;margin:8px 0"></label>
+      <label>Potvrzení hesla <input type="password" id="lkmtPassword2" autocomplete="new-password" minlength="12" required style="display:block;width:100%;padding:9px;margin:8px 0"></label>
+      <button type="submit" class="button">Změnit heslo</button>
+      <button type="button" class="button" id="lkmtPasswordClose">Zavřít</button>
+    </form>
+    <p id="lkmtPasswordStatus" role="status"></p>
+  </section>
+</div>
+<script>
+let lkmtPasswordRequired=false;
+function lkmtOpenPassword(required=false){
+ lkmtPasswordRequired=required;
+ document.getElementById('lkmtPasswordPanel').style.display='block';
+ document.getElementById('lkmtPasswordClose').style.display=required?'none':'';
+ document.getElementById('lkmtPasswordInfo').textContent=required?'Při prvním přihlášení si musíte změnit počáteční heslo (alespoň 12 znaků).':'Zadejte nové heslo (alespoň 12 znaků).';
+}
+async function lkmtCheckFirstPassword(){
+ if(!cloudSession?.access_token)return;
+ try {
+  const r=await fetch(SUPABASE_URL+'/auth/v1/user',{headers:cloudHeaders()});
+  if(!r.ok)return;
+  const user=await r.json();
+  if(user.app_metadata?.lkmt_password_change_required===true)lkmtOpenPassword(true);
+ }catch(e){console.warn('Ověření prvního hesla selhalo',e);}
+}
+document.getElementById('lkmtPasswordClose').onclick=()=>{if(!lkmtPasswordRequired)document.getElementById('lkmtPasswordPanel').style.display='none';};
+document.getElementById('lkmtPasswordForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const p=document.getElementById('lkmtPassword1').value,q=document.getElementById('lkmtPassword2').value;
+ const msg=document.getElementById('lkmtPasswordStatus');
+ if(p.length<12||p!==q){msg.textContent='Heslo musí mít alespoň 12 znaků a obě hodnoty se musí shodovat.';return;}
+ const button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;
+ try {
+  const r=await fetch(SUPABASE_URL+'/functions/v1/lkmt-change-password',{method:'POST',headers:cloudHeaders(),body:JSON.stringify({password:p})});
+  const data=await r.json();if(!r.ok)throw Error(data.message||'Změna selhala');
+  lkmtPasswordRequired=false;msg.textContent='Heslo bylo změněno.';
+  document.getElementById('lkmtPasswordPanel').style.display='none';
+  document.getElementById('lkmtPassword1').value='';document.getElementById('lkmtPassword2').value='';
+ }catch(err){msg.textContent='Chyba: '+err.message;}finally{button.disabled=false;}
+});
+// Kontrola po přihlášení i po obnovení uložené relace.
+const lkmtOriginalCloudLogin=cloudLogin;
+cloudLogin=async function(email,password){const result=await lkmtOriginalCloudLogin(email,password);setTimeout(lkmtCheckFirstPassword,500);return result;};
+const lkmtOriginalCloudRefreshSession=cloudRefreshSession;
+cloudRefreshSession=async function(){const ok=await lkmtOriginalCloudRefreshSession();if(ok)setTimeout(lkmtCheckFirstPassword,500);return ok;};
+document.addEventListener('DOMContentLoaded',()=>{
+ const logout=document.getElementById('cloudLogoutBtn');
+ if(!logout)return;
+ const button=document.createElement('button');button.type='button';button.textContent='Změnit heslo';
+ button.style.cssText='display:block;margin:4px 0 0 auto;padding:0;border:0;background:transparent;text-decoration:underline;cursor:pointer;font-size:11px;color:inherit';
+ button.onclick=()=>lkmtOpenPassword(false);
+ logout.insertAdjacentElement('afterend',button);
+});
+</script>
+
+<script>
+/* LKMT V7 – Watch: čtení všech sekcí, bez možnosti editace.
+   Editor zůstává do dokončení zabezpečených editor RPC také read-only. */
+function lkmtIsReadOnlyUser(){
+  return !!(typeof cloudSession !== 'undefined' && cloudSession?.access_token && !isVacationAdmin());
+}
+const lkmtV7NavWords=/^(otevřít|zobrazit|zpět|návrat|zavřít|odhlásit|změnit heslo|správa pracovníků|legenda|přehled lázní|plánování dovolených|roční statistika|statistika|předchozí|další|‹|›|«|»)/i;
+const lkmtV7NavigationIds=new Set(['displayYearSelect']);
+function lkmtV7IsPasswordElement(el){return !!el.closest('#lkmtPasswordPanel, #cloudLoginOverlay, #cloudLoginPanel, #cloudAuthOverlay, #lkmtAccessPanel');}
+function lkmtV7IsNavigation(el){
+  if(el.closest('#cloudStatusBar'))return true;
+  // Otevření detailu požadavků je navigace, nikoliv editace.
+  if(el.matches('button.vpc-request-add,button.vpc-request-close'))return true;
+  if(lkmtV7NavigationIds.has(el.id))return true;
+  if(el.matches('button,a,[role=button]')){
+    const text=(el.textContent||'').trim().replace(/^[^\p{L}\d]+/u,'').trim();
+    return lkmtV7NavWords.test(text) || !!el.closest('.home-buttons');
+  }
+  // Year selectors in browsing pages are allowed; changing dates/settings is not.
+  if(el.matches('select') && /year|rok/i.test(el.id||''))return true;
+  return false;
+}
+function lkmtV7Lock(){
+  const readonly=lkmtIsReadOnlyUser();
+  document.body.classList.toggle('lkmt-v7-readonly',readonly);
+  document.querySelectorAll('#cloudLoginOverlay [data-lkmt-v7-locked]').forEach(el=>{
+    if(el.dataset.lkmtV7Locked==='disabled')el.disabled=false;
+    if(el.dataset.lkmtV7Locked==='readonly')el.readOnly=false;
+    delete el.dataset.lkmtV7Locked;
+  });
+  if(!readonly){
+    document.querySelectorAll('[data-lkmt-v7-locked]').forEach(el=>{
+      if(el.dataset.lkmtV7Locked==='disabled')el.disabled=false;
+      else if(el.dataset.lkmtV7Locked==='readonly')el.readOnly=false;
+      else if(el.dataset.lkmtV7Locked==='editable')el.contentEditable='true';
+      delete el.dataset.lkmtV7Locked;
+    });
+    return;
+  }
+  document.querySelectorAll('input,textarea,select,button,[contenteditable="true"]').forEach(el=>{
+    if(lkmtV7IsPasswordElement(el)||lkmtV7IsNavigation(el))return;
+    if(el.matches('button') && el.closest('#cloudStatusBar'))return;
+    if(el.matches('input,textarea')){
+      if(el.type==='hidden')return;
+      if(['checkbox','radio','file','date','number','range','color'].includes(el.type)){
+        if(!el.disabled){el.dataset.lkmtV7Locked='disabled';el.disabled=true;}
+      }else if(!el.readOnly){el.dataset.lkmtV7Locked='readonly';el.readOnly=true;}
+    }else if(el.matches('select,button')){
+      if(!el.disabled){el.dataset.lkmtV7Locked='disabled';el.disabled=true;}
+    }else if(el.isContentEditable){el.dataset.lkmtV7Locked='editable';el.contentEditable='false';}
+  });
+}
+// Prevent interaction before the original editing handlers run.
+for(const eventName of ['click','change','input','submit','keydown']){
+ document.addEventListener(eventName,event=>{
+   if(!lkmtIsReadOnlyUser())return;
+   const el=event.target.closest?.('input,textarea,select,button,[contenteditable],form');
+   if(!el || lkmtV7IsPasswordElement(el) || lkmtV7IsNavigation(el))return;
+   if(eventName==='keydown' && !['Enter',' ','Backspace','Delete'].includes(event.key))return;
+   event.preventDefault();event.stopImmediatePropagation();
+ },true);
+}
+// Barevný vzorník pracovníka nesmí být vizuálně zašedlý.
+const lkmtV7Observer=new MutationObserver(()=>lkmtV7Lock());
+document.addEventListener('DOMContentLoaded',()=>{
+  lkmtV7Observer.observe(document.body,{childList:true,subtree:true});
+  lkmtV7Lock();
+  setInterval(lkmtV7Lock,1200);
+});
+</script>
+<style>
+.lkmt-v7-readonly input[readonly],.lkmt-v7-readonly textarea[readonly]{cursor:default!important}
+.lkmt-v7-readonly button:disabled{opacity:.58;cursor:not-allowed}
+.lkmt-v7-readonly input.worker-color-input:disabled{opacity:1!important;filter:none!important;cursor:default!important}
+.lkmt-v7-readonly .vpc-request-modal input:disabled,.lkmt-v7-readonly .vpc-request-modal select:disabled{opacity:1!important;color:#202a35!important;-webkit-text-fill-color:#202a35!important}
+</style>
+<style>
+/* V7.3: zobrazení uložených kódů i při VV=0; bez možnosti editace */
+.lkmt-v73-code-display{display:block;min-height:27px;line-height:27px;text-align:center;font-weight:700;border-radius:2px;color:#202020}
+.lkmt-v73-color-swatch{display:inline-block;width:36px;height:22px;border:1px solid #777;border-radius:2px;vertical-align:middle}
+.lkmt-v7-readonly input[readonly][style*="background"]{opacity:1!important;filter:none!important}
+.lkmt-v7-readonly td.vac-inactive .lkmt-v73-code-display{opacity:1!important}
+</style>
+<style>
+/* LKMT V7.4 – Read-only NESMÍ změnit barvy, pozadí ani kontrast vůči Adminovi.
+   Správa pracovníků má původní barvy na inline style; žádné readonly pozadí. */
+.lkmt-v7-readonly .workers-table input.worker-name-input,
+.lkmt-v7-readonly .workers-table input.worker-data-input {
+  opacity:1!important;
+  filter:none!important;
+  -webkit-text-fill-color:currentColor!important;
+}
+.lkmt-v7-readonly .workers-table input.worker-name-input:disabled,
+.lkmt-v7-readonly .workers-table input.worker-data-input:disabled {
+  opacity:1!important;
+  filter:none!important;
+  -webkit-text-fill-color:currentColor!important;
+}
+.lkmt-v7-readonly .workers-table td,
+.lkmt-v7-readonly .workers-table tr {opacity:1!important;filter:none!important}
+/* Předchozí obecné pravidlo pro readOnly nesmí přepsat inline barvu pracovníka. */
+</style>
 </body>
 </html>
