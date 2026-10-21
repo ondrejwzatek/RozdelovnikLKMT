@@ -7395,6 +7395,14 @@ async function loadRound0CloudForYear(year){
             saveData(round0GeneratedYearKey(year),vacationRound0Generated);
         }
     }catch(e){ console.error("Načtení 0. kola pro rok "+year+":",e); }
+    try{
+        const records=await readRound0WorkerRecords(year);
+        if(Number(YEAR)===Number(year)){
+            for(const record of records){
+                if(Array.isArray(record.requests))vacationRound0Requests[String(record.worker_id)]=record.requests;
+            }
+        }
+    }catch(e){console.error("Načtení individuálních požadavků:",e);}
 }
 // V7.5 TEST: per-year lock for editor requests; administrators remain unrestricted.
 const round0LockKey=year=>"vacation_round0_lock_"+Number(year);
@@ -8137,7 +8145,10 @@ function renderVacationPlanningControl() {
         let list=getRound0Requests(w.id).map(function(x){return Object.assign({from:"",to:"",type:""},x);});
         if(!list.length) list=[{from:"",to:"",type:""}];
         ensureRound0RequestIds(w.id,list);
-        const lkmtRequestViewOnly=lkmtIsReadOnlyUser();
+        const lkmtEditorOwnRound0=!!lkmtEditorWorkerId
+            && String(lkmtEditorWorkerId)===String(w.id)
+            && !round0EditorLocked;
+        const lkmtRequestViewOnly=lkmtIsReadOnlyUser() && !lkmtEditorOwnRound0;
         const backdrop=document.createElement("div"); backdrop.className="vpc-request-modal-backdrop";
         const modal=document.createElement("div"); modal.className="vpc-request-modal"; backdrop.appendChild(modal);
         const head=document.createElement("div"); head.className="vpc-request-modal-head";
@@ -8174,9 +8185,22 @@ function renderVacationPlanningControl() {
         const add=document.createElement("button"); add.type="button"; add.className="vpc-request-new"; add.textContent="+ Přidat další požadavek"; actions.appendChild(add); if(lkmtRequestViewOnly)add.remove();
         const hint=document.createElement("span"); hint.className="vpc-request-hint"; hint.textContent="Dny = Po–Pá • požadavek se zapíše jen pokud celý projde limitem VV"; actions.appendChild(hint); modal.appendChild(actions);
         add.addEventListener("click",function(){ list.push({from:"",to:"",type:""}); ensureRound0RequestIds(w.id,list); redraw(); });
-        function finish(){
+        async function finish(){
             if(lkmtRequestViewOnly){backdrop.remove();return;}
             ensureRound0RequestIds(w.id,list);
+            if(lkmtEditorOwnRound0){
+                const activeList=list.filter(r=>r.from||r.to||r.type);
+                if(activeList.some(r=>!r.from||!r.to||!['D','RH'].includes(r.type)||r.to<r.from)){
+                    alert("Vyplňte platný termín Od–Do a typ D/RH.");return;
+                }
+                try{
+                    await saveRound0WorkerRecord(YEAR,w.id,activeList);
+                    vacationRound0Requests[String(w.id)]=activeList;
+                    saveData(round0YearKey(YEAR),vacationRound0Requests);
+                    backdrop.remove();renderVacationPlanning();
+                }catch(error){alert(error.message);}
+                return;
+            }
             const activeList=list.filter(function(r){return r.from||r.to||r.type;});
             const result=applyAllRound0RequestsForWorker(w,activeList);
             if(!result.ok){
@@ -9283,6 +9307,11 @@ function lkmtV7IsPasswordElement(el){return !!el.closest('#lkmtPasswordPanel, #c
 function lkmtV7IsNavigation(el){
   if(el.closest('#cloudStatusBar'))return true;
   // Otevření detailu požadavků je navigace, nikoliv editace.
+  if(el.closest('.vpc-request-modal') && lkmtEditorWorkerId && !round0EditorLocked){
+    const title=el.closest('.vpc-request-modal').querySelector('h4')?.textContent||'';
+    const own=workers.find(w=>String(w.id)===String(lkmtEditorWorkerId));
+    if(own && title==="Požadavky – "+own.name)return true;
+  }
   if(el.matches('button.vpc-request-add,button.vpc-request-close'))return true;
   if(lkmtV7NavigationIds.has(el.id))return true;
   if(el.matches('button,a,[role=button]')){
