@@ -8755,12 +8755,15 @@ function stageVacationManualChange(month,row,date,newCode) {
 }
 
 let lkmtVacationManualSaveInProgress=false;
+let lkmtVacationCloudStateUncertain=false;
 async function saveVacationManualChanges() {
+    if(lkmtVacationCloudStateUncertain){alert("Předchozí ukládání mohlo být provedeno jen částečně. Před další úpravou obnovte stránku (F5) a zkontrolujte plán.");return false;}
     if(lkmtVacationManualSaveInProgress)return false;
     const changes=Object.values(vacationManualChanges);
     if(!changes.length) return;
     const saveYear=Number(YEAR);
     const lkmtScheduleBeforeSave=Object.assign({},schedule);
+    let lkmtCloudWriteStarted=false;
     const entries=getVacationCodeEntries();
     // Recheck ownership at commit time, not only when a dropdown was opened.
     if(!isVacationAdmin()){
@@ -8855,6 +8858,8 @@ async function saveVacationManualChanges() {
             throw new Error("Cloudový plán ještě není načten. Vyčkejte na synchronizaci.");
         if(cloudSession) {
             for(const ch of changes) {
+                // Po prvním cloudovém požadavku už nelze předpokládat atomický rollback.
+                lkmtCloudWriteStarted=true;
                 const date=parseLocalDate(ch.date);
                 const oldEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.original||"").toLocaleLowerCase("cs"));
                 const newEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(ch.current||"").toLocaleLowerCase("cs"));
@@ -8881,9 +8886,10 @@ async function saveVacationManualChanges() {
     } catch(err) {
         // Obnovit lokální měsíční rozdělovník, pokud cloudové ukládání selže.
         schedule=lkmtScheduleBeforeSave;
+        if(lkmtCloudWriteStarted)lkmtVacationCloudStateUncertain=true;
         console.error("Uložení ručních změn dovolených:",err);
         updateVacationManualButtons();
-        alert("Uložení selhalo: "+(err&&err.message?err.message:"Neznámá chyba")+". Změny zůstávají připravené k opakování.");
+        alert("Uložení selhalo: "+(err&&err.message?err.message:"Neznámá chyba")+(lkmtVacationCloudStateUncertain?". Některé změny už mohly být zapsány do cloudu. Před dalším ukládáním obnovte stránku (F5) a zkontrolujte plán.":". Změny lze opravit a zkusit znovu."));
         return false;
     } finally {
         lkmtVacationManualSaveInProgress=false;
