@@ -9023,9 +9023,10 @@ async function lkmtLoadAccess() {
                         p_role:role.value,
                         p_active:active.checked
                     });
-                    status.textContent='Uloženo: '+person.worker_name+' (evidence; založení účtu je samostatný krok).';
+                    await lkmtLoadAccess();
+                    document.getElementById('lkmtAccessStatus').textContent='Uloženo: '+person.worker_name+' (založení účtu je samostatný krok).';
                 } catch(e){status.textContent='Chyba: '+e.message;}
-                finally{save.disabled=false;}
+                finally{if(person.role!=='admin')save.disabled=false;}
             };
             tdAction.append(save);
             if(person.email && person.active) {
@@ -9068,7 +9069,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!target)return;
     const btn=document.createElement('button');
     btn.type='button';btn.className='button button-blue';
-    btn.textContent='🔐 Správa přístupů (TEST)';
+    btn.textContent='🔐 Správa přístupů';
     btn.onclick=lkmtShowAccess;
     target.insertAdjacentElement('afterend',btn);
     const update=()=>{btn.style.display=isVacationAdmin()?'':'none';};
@@ -9079,7 +9080,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 <div id="lkmtPasswordPanel" style="display:none;position:fixed;inset:0;z-index:100001;background:#0009;padding:7vh 3vw;overflow:auto">
   <section style="max-width:440px;margin:auto;background:#fff;color:#222;padding:24px;border-radius:12px">
-    <h2>Změna vlastního hesla – TEST</h2>
+    <h2>Změna vlastního hesla</h2>
     <p id="lkmtPasswordInfo">Zadejte nové heslo (alespoň 12 znaků).</p>
     <form id="lkmtPasswordForm">
       <label>Nové heslo <input type="password" id="lkmtPassword1" autocomplete="new-password" minlength="12" required style="display:block;width:100%;padding:9px;margin:8px 0"></label>
