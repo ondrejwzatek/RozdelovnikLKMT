@@ -7381,6 +7381,7 @@ async function loadRound0CloudForYear(year){
     vacationRound0Requests=loadRound0RequestsForYear(year);
     vacationRound0Generated=loadRound0GeneratedForYear(year);
     await loadRound0EditorLock(year);
+    try{await lkmtLoadEditorIdentity();}catch(e){console.error("Identita Editora:",e);lkmtEditorWorkerId=null;}
     if(!cloudSession) return;
     try{
         const r=await cloudFetch("app_settings?setting_key=eq."+encodeURIComponent(round0CloudKey(year))+"&select=setting_value",{method:"GET"});
