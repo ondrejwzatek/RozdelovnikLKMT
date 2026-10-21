@@ -8773,6 +8773,8 @@ async function saveVacationManualChanges() {
 
         /* Teprve nyní ukládáme změny do Supabase. */
         if(!cloudSession)throw new Error("Pro uložení je nutné online přihlášení.");
+        if(!isVacationAdmin() && (!cloudVacationPlanReady || !cloudScheduleReady))
+            throw new Error("Cloudový plán ještě není načten. Vyčkejte na synchronizaci.");
         if(cloudSession) {
             for(const ch of changes) {
                 const date=parseLocalDate(ch.date);
