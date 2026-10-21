@@ -1619,8 +1619,13 @@ async function cloudFetch(path, options) {
             && /^vacation_editor_spa_requests\?/.test(path)
             && typeof lkmtEditorWorkerId !== 'undefined'
             && !!lkmtEditorWorkerId;
+        // Database RLS independently restricts all writes to the authenticated worker.
+        const isEditorVacationWrite = ['POST','DELETE','PATCH'].includes(lkmtMethod)
+            && /^(vacation_plan|monthly_schedule)\?/.test(path)
+            && typeof lkmtEditorWorkerId !== 'undefined'
+            && !!lkmtEditorWorkerId;
 
-        if (!['GET','HEAD','OPTIONS'].includes(lkmtMethod) && !isReadRpc && !isEditorRequestWrite && !isEditorSpaWrite) {
+        if (!['GET','HEAD','OPTIONS'].includes(lkmtMethod) && !isReadRpc && !isEditorRequestWrite && !isEditorSpaWrite && !isEditorVacationWrite) {
             console.warn('LKMT WATCH: zápis zablokován:', path);
             return new Response(JSON.stringify({message:'Režim pouze pro čtení'}), {status:403, headers:{'Content-Type':'application/json'}});
         }
