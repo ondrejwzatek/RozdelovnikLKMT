@@ -8628,6 +8628,16 @@ function stageVacationManualChange(month,row,date,newCode) {
     const entries=getVacationCodeEntries();
     const newEntry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===String(newCode||"").toLocaleLowerCase("cs");});
     if(newCode && !newEntry) return {ok:false,message:"Tento kód není ve Správě pracovníků."};
+    if(!isVacationAdmin()){
+        const oldEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===String(before).toLocaleLowerCase("cs"));
+        if(!lkmtEditorWorkerId || (oldEntry && String(oldEntry.worker.id)!==String(lkmtEditorWorkerId)) ||
+           (newEntry && String(newEntry.worker.id)!==String(lkmtEditorWorkerId)))
+            return {ok:false,message:"Editor smí upravovat pouze vlastní iniciály."};
+        const week=getMonthWeeks(month).find(w=>w.some(d=>makeDateKey(d)===makeDateKey(date)));
+        const wi=getMonthWeeks(month).indexOf(week);
+        if(!week || date.getDay()===0 || date.getDay()===6 || row>=Number(vacationVV[vacationWeekKey(month,wi)]||0))
+            return {ok:false,message:"Pole je mimo povolený limit VV."};
+    }
 
     /* Kontrola duplicity pracovníka v daném dni. */
     if(newEntry) {
@@ -9084,9 +9094,14 @@ function renderVacationMonth(month, table) {
         dates.forEach(function(date){
             const wi=dateWeek[makeDateKey(date)], vv=Number(vacationVV[vacationWeekKey(month,wi)]||0); const weekday=date.getDay()>=1&&date.getDay()<=5; const active=weekday&&row<vv; const adminOverride=weekday&&row>=vv&&isVacationAdmin(); const editable=active||adminOverride;
             const td=document.createElement("td"); const isWeekend=date.getDay()===0||date.getDay()===6; const isHoliday=holidays.includes(dateToInput(date)); if(isHoliday){td.classList.add(isWeekend?"vac-holiday-weekend":"vac-holiday");td.title="Státní svátek";}else if(isWeekend){td.classList.add("vac-weekend");} if(row>=vv){td.classList.add("vac-inactive");} if(adminOverride) td.classList.add("vacation-admin-override");if(date.getDay()===1||date===dates[0])td.classList.add("vac-week-start");
-            // TEST V7.3: Čtení uložených kódů je nezávislé na VV.
-            // Admin zachovává původní editaci; Watch/Editor zatím pouze čtou.
-            if(!isVacationAdmin()){
+            // WATCH sees all entries; Editor may edit only own codes in active VV slots.
+            const ownCodes=entries.filter(e=>lkmtEditorWorkerId &&
+                String(e.worker.id)===String(lkmtEditorWorkerId));
+            const existingCode=String(vacationPlan[vacationCellKey(month,row,date)]||"").trim();
+            const existingEntry=entries.find(e=>e.code.toLocaleLowerCase("cs")===existingCode.toLocaleLowerCase("cs"));
+            const ownCell=!!(existingEntry && String(existingEntry.worker.id)===String(lkmtEditorWorkerId));
+            const editorCell=!!(lkmtEditorWorkerId && active && (!existingCode || ownCell));
+            if(!isVacationAdmin() && !editorCell){
                 const code=String(vacationPlan[vacationCellKey(month,row,date)]||"").trim();
                 if(code){
                     const display=document.createElement("span");
@@ -9096,7 +9111,7 @@ function renderVacationMonth(month, table) {
                     if(found)applyWorkerColors(display,found.worker);
                     td.appendChild(display);
                 }
-            } else if(editable){
+            } else if(editable || editorCell){
                 const input=document.createElement("select"); input.className="vacation-code"; const key=vacationCellKey(month,row,date);
                 const currentValue=vacationPlan[key]||"";
                 const usedWorkerIds=new Set();
@@ -9108,7 +9123,7 @@ function renderVacationMonth(month, table) {
                 }
                 const currentEntry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===currentValue.toLocaleLowerCase("cs");});
                 const emptyOption=document.createElement("option"); emptyOption.value=""; emptyOption.textContent=""; input.appendChild(emptyOption);
-                entries.forEach(function(e){
+                (isVacationAdmin()?entries:ownCodes).forEach(function(e){
                     if(!usedWorkerIds.has(e.worker.id) || (currentEntry && e.worker.id===currentEntry.worker.id)){
                         const o=document.createElement("option");o.value=e.code;o.textContent=e.code;input.appendChild(o);
                     }
