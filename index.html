@@ -9223,14 +9223,14 @@ document.addEventListener("DOMContentLoaded",function(){
 </script>
 
 
-<!-- Správa přístupů; editor má zatím pouze právo čtení -->
+<!-- Správa přístupů pro Admina: role Editor a Watch -->
 <div id="lkmtAccessPanel" style="display:none;position:fixed;inset:0;z-index:99999;background:#0009;overflow:auto;padding:4vh 3vw">
   <section style="max-width:1100px;margin:auto;background:white;color:#222;border-radius:12px;padding:20px;box-shadow:0 10px 40px #0005">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:15px">
       <h2>Správa přístupů</h2>
       <button class="button" onclick="document.getElementById('lkmtAccessPanel').style.display='none'">Zavřít</button>
     </div>
-    <p style="color:#a33;font-weight:bold">Administrátor spravuje přístupy pracovníků. Po uložení e-mailu a role lze vytvořit účet nebo nastavit nové počáteční heslo. Editor má zatím pouze právo čtení.</p>
+    <p style="color:#a33;font-weight:bold">Administrátor spravuje přístupy pracovníků. Po uložení e-mailu a role lze vytvořit účet nebo nastavit nové počáteční heslo. Editor upravuje pouze vlastní údaje v Plánování dovolených; Watch má přístup jen ke čtení.</p>
     <p id="lkmtAccessStatus" role="status"></p>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse" id="lkmtAccessTable">
       <thead><tr><th>Pracovník</th><th>E-mail</th><th>Role</th><th>Aktivní</th><th>Akce</th></tr></thead>
