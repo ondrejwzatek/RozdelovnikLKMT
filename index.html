@@ -7437,7 +7437,7 @@ let round0CloudSaveTimer=null;
 function saveRound0CloudForYear(year){
     saveData(round0YearKey(year),vacationRound0Requests);
     saveData(round0GeneratedYearKey(year),vacationRound0Generated);
-    if(!cloudSession) return;
+    if(!cloudSession || !isVacationAdmin()) return;
     clearTimeout(round0CloudSaveTimer);
     const saveYear=Number(year);
     const payload={requests:JSON.parse(JSON.stringify(vacationRound0Requests||{})),generated:JSON.parse(JSON.stringify(vacationRound0Generated||{}))};
@@ -7455,8 +7455,12 @@ async function saveRound0WorkerRecord(year,workerId,requests){
     if(!cloudSession)throw new Error("Není aktivní přihlášení.");
     if(!Array.isArray(requests))throw new Error("Neplatný formát požadavků.");
     if(!isVacationAdmin()){
+        if(Number(year)!==Number(YEAR))throw new Error("Rok se mezitím změnil.");
         const ownId=await lkmtFetchMyWorkerId();
-        if(String(ownId)!==String(workerId))throw new Error("Editor smí měnit jen své požadavky.");
+        const role=await cloudFetch("rpc/lkmt_is_active_editor",{method:"POST",body:"{}"});
+        if(!role.ok || !(await role.json()) || String(ownId)!==String(workerId))
+            throw new Error("Editor smí měnit jen své požadavky.");
+        await loadRound0EditorLock(year);
         if(round0EditorLocked)throw new Error("0. kolo je uzamčeno.");
     }
     const response=await cloudFetch("vacation_round0_editor_requests?on_conflict=planning_year,worker_id",{
@@ -7496,7 +7500,8 @@ function getRound0Requests(workerId){
 }
 function setRound0Requests(workerId, list){
     vacationRound0Requests[String(workerId)]=list;
-    saveRound0CloudForYear(YEAR);
+    if(isVacationAdmin())saveRound0CloudForYear(YEAR);
+    else saveData(round0YearKey(YEAR),vacationRound0Requests);
 }
 const SPA_CATALOG = [
  {spa:"Janské Lázně",operator:"Státní léčebné lázně",houses:[{name:"LD Terra Superior",price2026:"36 150 Kč; 16 750 Kč (6 nocí)",price2027:"38 000 Kč; 17 600 Kč (6 nocí)"}],terms:"volné termíny; 1.1.–31.12.",contact:"Petra Nováková · tel. 770 157 784 · petra.novakova@janskelazne.com · www.janskelazne.com · Nám. Svobody 272, 542 25 Janské Lázně"},
@@ -8673,6 +8678,7 @@ function stageVacationManualChange(month,row,date,newCode) {
 async function saveVacationManualChanges() {
     const changes=Object.values(vacationManualChanges);
     if(!changes.length) return;
+    const saveYear=Number(YEAR);
     const entries=getVacationCodeEntries();
     // Recheck ownership at commit time, not only when a dropdown was opened.
     if(!isVacationAdmin()){
@@ -8734,6 +8740,14 @@ async function saveVacationManualChanges() {
     const btn=document.getElementById("saveVacationManualBtn");
     if(btn){btn.disabled=true;btn.textContent="Ukládám…";}
     try {
+        if(Number(YEAR)!==saveYear)throw new Error("Během ukládání se změnil rok.");
+        if(!isVacationAdmin()){
+            const verifiedWorker=await lkmtFetchMyWorkerId();
+            const verifiedRole=await cloudFetch("rpc/lkmt_is_active_editor",{method:"POST",body:"{}"});
+            if(!verifiedRole.ok || !(await verifiedRole.json()) ||
+                String(verifiedWorker)!==String(lkmtEditorWorkerId))
+                throw new Error("Oprávnění Editora již není platné.");
+        }
         /* Nejprve připravíme lokální měsíční rozdělovník. */
         for(const ch of changes) {
             const date=parseLocalDate(ch.date);
@@ -8753,6 +8767,7 @@ async function saveVacationManualChanges() {
         }
 
         /* Teprve nyní ukládáme změny do Supabase. */
+        if(!cloudSession)throw new Error("Pro uložení je nutné online přihlášení.");
         if(cloudSession) {
             for(const ch of changes) {
                 const date=parseLocalDate(ch.date);
@@ -8780,7 +8795,7 @@ async function saveVacationManualChanges() {
     } catch(err) {
         console.error("Uložení ručních změn dovolených:",err);
         updateVacationManualButtons();
-        alert("Změny se nepodařilo všechny uložit. Zůstávají připravené k opakovanému uložení.");
+        alert("Uložení selhalo: "+(err&&err.message?err.message:"Neznámá chyba")+". Změny zůstávají připravené k opakování.");
     } finally {
         if(btn) btn.textContent="Uložit změny";
         updateVacationManualButtons();
