@@ -8071,9 +8071,24 @@ async function importIncomingTowerPriority(year){
     }
 }
 function getRoundOrder(roundNumber){
-    if(roundNumber===1) return vacationControl.round1Order||[];
-    const prev=vacationControl.roundSnapshots[String(roundNumber-1)];
-    return prev&&Array.isArray(prev.nextOrder)?prev.nextOrder:(vacationControl.round1Order||[]);
+    // Starší snapshot může obsahovat ID pracovníka, který již neexistuje,
+    // nebo naopak postrádat pracovníka přidaného do aktuálního roku.
+    // Pořadí zůstává beze změny, pouze doplníme chybějící aktivní pracovníky.
+    const prev=roundNumber===1?null:vacationControl.roundSnapshots[String(roundNumber-1)];
+    const stored=roundNumber===1?(vacationControl.round1Order||[]):
+        (prev&&Array.isArray(prev.nextOrder)?prev.nextOrder:(vacationControl.round1Order||[]));
+    const currentIds=workers.map(function(w){return String(w.id);});
+    const valid=new Set(currentIds),seen=new Set(),order=[];
+    (stored||[]).forEach(function(id){
+        id=String(id);
+        if(valid.has(id)&&!seen.has(id)){seen.add(id);order.push(id);}
+    });
+    // Vezmeme pořadí 1. kola, aby doplnění bylo předvídatelné.
+    (vacationControl.round1Order||[]).concat(currentIds).forEach(function(id){
+        id=String(id);
+        if(valid.has(id)&&!seen.has(id)){seen.add(id);order.push(id);}
+    });
+    return order;
 }
 function closeVacationRound(roundNumber){
     if(!isVacationAdmin()) return;
