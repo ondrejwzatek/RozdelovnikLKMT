@@ -8170,22 +8170,31 @@ function renderVacationPlanningControl() {
     const zero=document.createElement("div"); zero.className="vpc-round vpc-round-zero";
     const zhead=document.createElement("div"); zhead.className="vpc-round-head";
     zhead.innerHTML="<span>0. kolo – požadavky</span>";
-    const round0Status=document.createElement("small");
-    round0Status.textContent=round0EditorLocked?"🔒 Uzamčeno pro Editory":"🔓 Odemčeno pro Editory";
-    zhead.appendChild(round0Status);
-    zero.appendChild(zhead);
+    const round0Actions=document.createElement("div");
+    round0Actions.className="vpc-round-head-actions";
+    const round0Status=document.createElement("span");
+    round0Status.className="vpc-round-status-dot "+(round0EditorLocked?"is-inactive":"is-active");
+    round0Status.title=round0EditorLocked?"Uzamčeno pro Editory":"Odemčeno pro Editory";
+    round0Status.setAttribute("aria-label",round0Status.title);
+    round0Actions.appendChild(round0Status);
     if(admin){
         const lockButton=document.createElement("button");
         lockButton.type="button";
-        lockButton.className="button";
-        lockButton.textContent=round0EditorLocked?"🔓 Odemknout 0. kolo":"🔒 Zamknout 0. kolo";
+        lockButton.className="vpc-close-round-btn"+(round0EditorLocked?" is-locked":"");
+        lockButton.textContent=round0EditorLocked?"Odemknout 0. kolo":"Uzamknout 0. kolo";
         lockButton.onclick=async()=>{
             lockButton.disabled=true;
             try{await setRound0EditorLock(!round0EditorLocked);}
             catch(error){alert(error.message);lockButton.disabled=false;}
         };
-        zhead.appendChild(lockButton);
+        round0Actions.appendChild(lockButton);
+    } else {
+        const round0Label=document.createElement("small");
+        round0Label.textContent=round0EditorLocked?"Uzamčeno":"Odemčeno";
+        round0Actions.appendChild(round0Label);
     }
+    zhead.appendChild(round0Actions);
+    zero.appendChild(zhead);
 
     const zt=document.createElement("table"); zt.className="vpc-order-table";
     zt.innerHTML="<thead><tr><th>#</th><th>Pracovník</th><th>Požadavky</th><th>D</th><th>RH</th><th>+</th></tr></thead>";
