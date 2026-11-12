@@ -1475,10 +1475,23 @@ h1 {
 const SUPABASE_URL = "https://fuzdntjsidmankpflqjq.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_wMuEnP7BgLlMru9arfM4aA_TMVMPMHQ";
 const CLOUD_SESSION_KEY = "rozdelovnik_supabase_session";
-const ADMIN_EMAILS = ["ondrej.wzatek@seznam.cz"];
+let cloudAdminUserId = null;
 function isVacationAdmin() {
-    const email = String(cloudSession && cloudSession.user && cloudSession.user.email || "").trim().toLowerCase();
-    return ADMIN_EMAILS.includes(email);
+    return cloudAdminUserId !== null && cloudAdminUserId === cloudSession?.user?.id;
+}
+async function cloudLoadAdminRole() {
+    const session = cloudSession;
+    try {
+        const response = await fetch(SUPABASE_URL + "/rest/v1/rpc/lkmt_access_admin", {
+            method: "POST", headers: cloudHeaders(), body: "{}"
+        });
+        const allowed = response.ok && await response.json() === true;
+        if (cloudSession === session) cloudAdminUserId = allowed ? session.user.id : null;
+    } catch (error) {
+        if (cloudSession === session) cloudAdminUserId = null;
+        console.warn("Ověření role správce selhalo", error);
+    }
+    document.dispatchEvent(new Event("lkmt-admin-role-changed"));
 }
 let cloudSession = null;
 /* Produkce: automatické zápisy ročního profilu jsou povoleny až po dokončení
@@ -1590,6 +1603,7 @@ async function cloudLogin(email, password) {
     if (!r.ok) throw new Error(data.error_description || data.msg || data.message || "Přihlášení se nezdařilo.");
     cloudSession = data;
     localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify(data));
+    await cloudLoadAdminRole();
     return data;
 }
 
@@ -1601,6 +1615,7 @@ async function cloudRefreshSession() {
     if (!r.ok) return false;
     cloudSession = await r.json();
     localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify(cloudSession));
+    await cloudLoadAdminRole();
     return true;
 }
 
@@ -9409,6 +9424,15 @@ document.addEventListener("DOMContentLoaded",function(){
       <button class="button" onclick="document.getElementById('lkmtAccessPanel').style.display='none'">Zavřít</button>
     </div>
     <p style="color:#a33;font-weight:bold">Administrátor spravuje přístupy pracovníků. Po uložení e-mailu a role lze vytvořit účet nebo nastavit nové počáteční heslo. Editor upravuje pouze vlastní údaje v Plánování dovolených; Watch má přístup jen ke čtení.</p>
+    <h3>Administrátoři</h3>
+    <p>Pro přidání použijte samostatný účet Supabase s potvrzeným e-mailem.</p>
+    <form id="lkmtAdminForm">
+      <label>E-mail účtu <input type="email" name="email" required autocomplete="off"></label>
+      <button type="submit" class="button">Přidat administrátora</button>
+    </form>
+    <p id="lkmtAdminStatus" role="status"></p>
+    <ul id="lkmtAdminList"></ul>
+    <h3>Přístupy pracovníků</h3>
     <p id="lkmtAccessStatus" role="status"></p>
     <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse" id="lkmtAccessTable">
       <thead><tr><th>Pracovník</th><th>E-mail</th><th>Role</th><th>Aktivní</th><th>Akce</th></tr></thead>
@@ -9430,8 +9454,60 @@ async function lkmtAccessRpc(name, payload) {
 async function lkmtShowAccess() {
     if(!isVacationAdmin()) { alert('Pouze administrátor.'); return; }
     document.getElementById('lkmtAccessPanel').style.display='block';
-    await lkmtLoadAccess();
+    await Promise.all([lkmtLoadAccess(), lkmtLoadAdmins()]);
 }
+async function lkmtLoadAdmins() {
+    const list = document.getElementById('lkmtAdminList');
+    const status = document.getElementById('lkmtAdminStatus');
+    list.replaceChildren();
+    status.textContent = 'Načítám administrátory…';
+    try {
+        const admins = await lkmtAccessRpc('lkmt_admin_list');
+        for (const admin of admins) {
+            const row = document.createElement('li');
+            const label = admin.email || admin.user_id;
+            row.textContent = label;
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'button';
+            remove.textContent = 'Odebrat';
+            remove.disabled = admins.length === 1;
+            if (remove.disabled) remove.title = 'Posledního správce nelze odebrat';
+            remove.onclick = async () => {
+                if (!confirm('Odebrat roli správce účtu ' + label + '?')) return;
+                remove.disabled = true;
+                try {
+                    await lkmtAccessRpc('lkmt_admin_change', {p_email:null, p_remove_user_id:admin.user_id});
+                    if (admin.user_id === cloudSession?.user?.id) location.reload();
+                    else await lkmtLoadAdmins();
+                } catch (error) {
+                    status.textContent = error.message;
+                    remove.disabled = false;
+                }
+            };
+            row.append(' ', remove);
+            list.append(row);
+        }
+        status.textContent = '';
+    } catch (error) {
+        status.textContent = error.message;
+    }
+}
+document.getElementById('lkmtAdminForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const button = form.querySelector('button');
+    button.disabled = true;
+    try {
+        await lkmtAccessRpc('lkmt_admin_change', {p_email:form.elements.email.value.trim(), p_remove_user_id:null});
+        form.reset();
+        await lkmtLoadAdmins();
+    } catch (error) {
+        document.getElementById('lkmtAdminStatus').textContent = error.message;
+    } finally {
+        button.disabled = false;
+    }
+});
 async function lkmtLoadAccess() {
     const status=document.getElementById('lkmtAccessStatus');
     status.textContent='Načítám pracovníky...';
@@ -9535,6 +9611,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     const update=()=>{btn.style.display=isVacationAdmin()?'':'none';};
     update();
     document.addEventListener('click',update,true);
+    document.addEventListener('lkmt-admin-role-changed',update);
 });
 </script>
 
