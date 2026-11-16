@@ -891,6 +891,7 @@ h1 {
 .vpc-live-ranking th,.vpc-live-ranking td{border-top:1px solid #e2e5e8;padding:4px 3px;text-align:center;font-size:10px}
 .vpc-live-ranking th{background:#f5f8fa;font-size:9px;line-height:1.05}
 .vpc-live-ranking td:nth-child(2){text-align:left;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vpc-live-ranking td.vpc-negative-balance{background:#fecaca;color:#7f1d1d;font-weight:700}
 .vpc-live-ranking .muted-demo{color:#9aa2aa;font-style:italic}
 @media (max-width:1350px){ .vpc-top{grid-template-columns:repeat(2,minmax(0,1fr));} .vpc-rounds{grid-template-columns:repeat(5,minmax(0,1fr));} }
 @media (max-width:950px){ .vpc-top{grid-template-columns:1fr;} .vpc-rounds{grid-template-columns:repeat(5,minmax(190px,1fr));} }
@@ -8620,18 +8621,26 @@ function renderVacationPlanningControl() {
         });
         table.appendChild(tb); card.appendChild(table); rounds.appendChild(card);
     });
-    // Plovoucí živé pořadí – zatím pouze grafická maketa, bez výpočtů.
+    // Plovoucí živé pořadí podle aktuálního plánu dovolených.
     const ranking=document.createElement("div"); ranking.className="vpc-live-ranking";
     const rhead=document.createElement("div"); rhead.className="vpc-round-head";
     rhead.innerHTML="<span>Živé pořadí pracovníků</span><small>podle věžáků</small>"; ranking.appendChild(rhead);
     const rt=document.createElement("table");
-    rt.innerHTML="<thead><tr><th>#</th><th>Pracovník</th><th>Věžáky<br>celkem</th><th>Dní D<br>k dispozici</th><th>Věžáky<br>za D</th><th>Věžáky<br>za RH</th><th>Věžáky<br>za D+RH</th></tr></thead>";
+    rt.innerHTML="<thead><tr><th>#</th><th>Pracovník</th><th>Věžáky<br>celkem</th><th>Zbývá<br>D</th><th>Zbývá<br>RH</th><th>Věžáky<br>za D</th><th>Věžáky<br>za RH</th><th>Věžáky<br>za D+RH</th></tr></thead>";
     const rtb=document.createElement("tbody");
     const liveRows=currentTowerRows(); const liveOrder=stableTowerOrder(liveRows,getRoundOrder(Math.max(1,vacationControl.currentRound+1))); const liveMap={}; liveRows.forEach(function(x){liveMap[x.workerId]=x;});
     liveOrder.forEach(function(workerId,index){
         const w=workers.find(function(x){return String(x.id)===workerId;}), x=liveMap[workerId]||{base:0,D:0,RH:0,total:0};
         const tr=document.createElement("tr");
-        [index+1,w?w.name:"—",x.total,Math.max(0,30-getVacationUsedDays(workerId).D),x.D,x.RH,x.D+x.RH].forEach(function(v){const td=document.createElement("td");td.textContent=v;tr.appendChild(td);});
+        const used=getVacationUsedDays(workerId);
+        const remainingD=30-used.D;
+        const remainingRh=(isWorkerRhEligible(w)?10:0)-used.RH;
+        [index+1,w?w.name:"—",x.total,remainingD,remainingRh,x.D,x.RH,x.D+x.RH].forEach(function(value,column){
+            const td=document.createElement("td");
+            td.textContent=value;
+            if((column===3 || column===4) && value<0)td.classList.add("vpc-negative-balance");
+            tr.appendChild(td);
+        });
         rtb.appendChild(tr);
     });
     rt.appendChild(rtb); ranking.appendChild(rt); top.appendChild(ranking);
