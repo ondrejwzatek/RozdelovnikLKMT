@@ -9418,7 +9418,10 @@ function renderVacationMonth(month, table) {
                 }
                 const currentEntry=entries.find(function(e){return e.code.toLocaleLowerCase("cs")===currentValue.toLocaleLowerCase("cs");});
                 const emptyOption=document.createElement("option"); emptyOption.value=""; emptyOption.textContent=""; input.appendChild(emptyOption);
-                (isVacationAdmin()?entries:ownCodes).forEach(function(e){
+                const vacationAdmin=isVacationAdmin();
+                const hideNewRh=!vacationAdmin && vacationWeekKoef(date,"RH")==="X";
+                (vacationAdmin?entries:ownCodes).forEach(function(e){
+                    if(hideNewRh && e.assignmentType==="RH" && e!==currentEntry)return;
                     if(!usedWorkerIds.has(e.worker.id) || (currentEntry && e.worker.id===currentEntry.worker.id)){
                         const o=document.createElement("option");o.value=e.code;o.textContent=e.code;input.appendChild(o);
                     }
