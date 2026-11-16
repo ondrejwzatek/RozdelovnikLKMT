@@ -7703,6 +7703,7 @@ function spaRequestsYearKey(year){ return "rozdelovnik_vacation_spa_requests_"+N
 function spaRequestsCloudKey(year){ return "vacation_spa_requests_"+Number(year); }
 function loadSpaRequestsForYear(year){ return loadData(spaRequestsYearKey(year), {}); }
 let vacationSpaRequests = loadSpaRequestsForYear(YEAR);
+let vacationSpaRefreshTimer;
 async function loadSpaRequestsCloudForYear(year){
     vacationSpaRequests=loadSpaRequestsForYear(year);
     if(!cloudSession) return;
@@ -8459,9 +8460,12 @@ function renderVacationPlanningControl() {
     const spaTable=document.createElement("table"); spaTable.className="vpc-order-table";
     spaTable.innerHTML="<thead><tr><th>#</th><th>Jméno</th><th>Lázně</th><th>Lázeňský dům</th><th>Nástup</th><th>Návrat</th></tr></thead>";
     const spaBody=document.createElement("tbody");
+    const spaYear=Number(YEAR);
+    const spaRowRefresh=new Map();
+    let spaWrites=0, spaWriteRevision=0;
     workers.forEach(function(w,index){
         const row=document.createElement("tr");
-        const data=vacationSpaRequests[String(w.id)]||{spa:"",house:"",start:"",returnDate:""};
+        let data=vacationSpaRequests[String(w.id)]||{spa:"",house:"",start:"",returnDate:""};
         const no=document.createElement("td"); no.textContent=index+1; row.appendChild(no);
         const nm=document.createElement("td"); nm.textContent=w.name; row.appendChild(nm);
         const spaTd=document.createElement("td"), spaInput=document.createElement("select");
@@ -8478,23 +8482,75 @@ function renderVacationPlanningControl() {
         if(lkmtIsReadOnlyUser() && !ownSpaEditor){
             spaInput.disabled=true;houseInput.disabled=true;startInput.disabled=true;
         }
+        spaRowRefresh.set(String(w.id),function(next){
+            data=next;
+            fillSpa();
+            fillHouses(data.house);
+            startInput.value=data.start;
+            startInput.classList.toggle("has-value",!!startInput.value);
+            ret.textContent=data.returnDate?spaDayDateLabel(data.returnDate):"—";
+        });
+        let spaSaveQueue=Promise.resolve();
+        let pendingRowSaves=0;
         async function saveSpa(){
             const request={spa:spaInput.value,house:houseInput.value,start:startInput.value};
-            if(lkmtIsReadOnlyUser()){
-                if(!ownSpaEditor)return;
+            if(spaYear!==Number(YEAR))return;
+            if(lkmtIsReadOnlyUser() && !ownSpaEditor)return;
+            if(!cloudSession && isVacationAdmin()){
+                saveSpaLayoutRequest(w.id,request);
+                const saved=vacationSpaRequests[String(w.id)];
+                ret.textContent=saved?.returnDate?spaDayDateLabel(saved.returnDate):"—";
+                return;
+            }
+            spaWrites++;
+            pendingRowSaves++;
+            spaWriteRevision++;
+            spaSaveQueue=spaSaveQueue.then(async function(){
                 try{
-                    await saveEditorSpaRecord(YEAR,w.id,request);
-                    vacationSpaRequests[String(w.id)]=Object.assign({},request,{returnDate:spaReturnDate(request.start)});
-                    saveData(spaRequestsYearKey(YEAR),vacationSpaRequests);
-                }catch(e){alert(e.message);return;}
-            }else saveSpaLayoutRequest(w.id,request);
-            const d=vacationSpaRequests[String(w.id)]||{};
-            ret.textContent=d.returnDate?spaDayDateLabel(d.returnDate):"—";
+                    await saveEditorSpaRecord(spaYear,w.id,request);
+                    if(spaYear!==Number(YEAR))return;
+                    const saved=Object.assign({},request,{returnDate:spaReturnDate(request.start)});
+                    vacationSpaRequests[String(w.id)]=saved;
+                    saveData(spaRequestsYearKey(spaYear),vacationSpaRequests);
+                    ret.textContent=saved.returnDate?spaDayDateLabel(saved.returnDate):"—";
+                }catch(e){
+                    alert(e.message);
+                    if(pendingRowSaves===1 && spaYear===Number(YEAR)){
+                        spaRowRefresh.get(String(w.id))(vacationSpaRequests[String(w.id)]||data);
+                    }
+                }finally{
+                    spaWrites--;
+                    pendingRowSaves--;
+                }
+            });
         }
         spaInput.addEventListener("change",function(){spaInput.classList.toggle("has-value",!!spaInput.value);fillHouses("");saveSpa();}); houseInput.addEventListener("change",function(){houseInput.classList.toggle("has-value",!!houseInput.value);saveSpa();}); startInput.addEventListener("change",function(){startInput.classList.toggle("has-value",!!startInput.value);saveSpa();});
         spaBody.appendChild(row);
     });
     spaTable.appendChild(spaBody); spa.appendChild(spaTable); top.appendChild(spa);
+    clearTimeout(vacationSpaRefreshTimer);
+    async function refreshSpaRows(){
+        if(!spa.isConnected || spaYear!==Number(YEAR))return;
+        const revision=spaWriteRevision;
+        if(cloudSession && !spaWrites && !document.hidden){
+            try{
+                const records=await readEditorSpaRecords(spaYear);
+                if(!spa.isConnected || spaYear!==Number(YEAR))return;
+                if(!spaWrites && revision===spaWriteRevision){
+                    records.forEach(function(record){
+                        const id=String(record.worker_id), current=vacationSpaRequests[id];
+                        const next={spa:record.spa,house:record.house,start:record.start_date,
+                            returnDate:spaReturnDate(record.start_date)};
+                        if(current && current.spa===next.spa && current.house===next.house && current.start===next.start)return;
+                        vacationSpaRequests[id]=next;
+                        spaRowRefresh.get(id)?.(next);
+                    });
+                }
+            }catch(e){console.error("Obnovení individuálních lázní:",e);}
+        }
+        if(spa.isConnected)vacationSpaRefreshTimer=setTimeout(refreshSpaRows,3000);
+    }
+    vacationSpaRefreshTimer=setTimeout(refreshSpaRows,3000);
     const defs=[
         {num:1,label:"RH"},{num:2,label:"D"},{num:3,label:"D"},{num:4,label:"FFA"}
     ];
