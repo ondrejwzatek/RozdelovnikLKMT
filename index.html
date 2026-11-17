@@ -8244,7 +8244,7 @@ function renderVacationPlanningControl() {
         const modal=document.createElement("div"); modal.className="vpc-request-modal"; modal.dataset.lkmtWorkerId=String(w.id); backdrop.appendChild(modal);
         const head=document.createElement("div"); head.className="vpc-request-modal-head";
         const title=document.createElement("h4"); title.textContent="Požadavky – "+w.name; head.appendChild(title);
-        const close=document.createElement("button"); close.className="vpc-request-close"; close.type="button"; close.textContent="×"; head.appendChild(close); modal.appendChild(head);
+        const saveButton=document.createElement("button"); saveButton.type="button"; saveButton.textContent="Uložit"; saveButton.style.cssText="margin-left:auto;margin-right:8px;padding:6px 12px;border-radius:6px;border:1px solid #2563eb;background:#2563eb;color:white;font-weight:600;cursor:pointer"; if(!lkmtRequestViewOnly)head.appendChild(saveButton); const close=document.createElement("button"); close.className="vpc-request-close"; close.type="button"; close.textContent="×"; close.title="Zavřít bez uložení"; head.appendChild(close); modal.appendChild(head);
         const table=document.createElement("table"); table.className="vpc-request-detail";
         table.innerHTML="<thead><tr><th>Od</th><th>Do</th><th>D/RH</th><th>Dní</th><th></th></tr></thead>";
         const body=document.createElement("tbody"); table.appendChild(body); modal.appendChild(table);
@@ -8281,6 +8281,100 @@ function renderVacationPlanningControl() {
             if(lkmtRound0SaveInProgress)return;
             if(lkmtRequestViewOnly){backdrop.remove();return;}
             ensureRound0RequestIds(w.id,list);
+            if(isVacationAdmin()){
+                if(Number(YEAR)!==round0ModalYear){alert("Rok se změnil. Otevřete požadavky znovu.");return;}
+                if(lkmtRound0SaveInProgress)return;
+                lkmtRound0SaveInProgress=true;
+                const activeList=list.filter(r=>r.from||r.to||r.type);
+                const backupPlan=Object.assign({},vacationPlan);
+                const backupChanges=Object.assign({},vacationManualChanges);
+                let planCommitted=false;
+                try{
+                    if(!cloudSession || !cloudVacationPlanReady || !cloudScheduleReady)
+                        throw new Error("Počkejte na načtení cloudového plánu.");
+                    if(Object.keys(vacationManualChanges).length)
+                        throw new Error("Nejprve uložte nebo zahoďte rozpracované změny v plánu.");
+                    if(activeList.some(r=>!r.from||!r.to||!['D','RH'].includes(r.type)||r.to<r.from))
+                        throw new Error("Vyplňte platný termín Od–Do a typ D/RH.");
+                    // Individuální záznam obsahuje přesný seznam buněk vytvořených 0. kolem.
+                    // Odstraníme pouze tyto buňky, nikoliv ručně zadané dovolené.
+                    // Use the immutable snapshot taken when the modal opened:
+                    // the editor-owned record may have no _generated metadata.
+                    const previous=originalList;
+                    const activeIds=new Set(activeList.map(r=>r._id).filter(Boolean));
+                    const removed=previous.filter(r=>!activeIds.has(r._id));
+                    const owned=removed.flatMap(r=>Array.isArray(r._generated)?r._generated:[]);
+                    const recovered=[];
+                    const entries=getVacationCodeEntries();
+                    const workerCodes=new Set(entries.filter(e=>String(e.worker.id)===String(w.id)).map(e=>String(e.code||"").toLocaleLowerCase("cs")));
+                    for(const req of removed){
+                        if(!req.from||!req.to||!['D','RH'].includes(req.type))continue;
+                        const from=parseDateKey(req.from),to=parseDateKey(req.to);
+                        if(!from||!to)continue;
+                        const known=new Set((req._generated||[]).map(cell=>vacationCellKey(cell.month,cell.row,parseDateKey(cell.date))));
+                        for(let d=new Date(from);d<=to;d.setDate(d.getDate()+1)){
+                            if(d.getDay()===0||d.getDay()===6)continue;
+                            const day=new Date(d),month=findVacationMonthForDate(day);
+                            if(month<0)continue;
+                            for(let row=0;row<VACATION_ROWS;row++){
+                                const key=vacationCellKey(month,row,day);
+                                const code=vacationPlan[key]||"";
+                                if(!code||known.has(key)||!workerCodes.has(String(code).toLocaleLowerCase("cs")))continue;
+                                recovered.push({month,row,date:makeDateKey(day),code});
+                            }
+                        }
+                    }
+                    if(recovered.length && !confirm("U smazaného požadavku chybí evidence buněk.\\n\\nBylo nalezeno "+recovered.length+" odpovídajících iniciál pracovníka v daném termínu. Odstranit je také?\\n\\nPotvrďte pouze pokud patří tomuto požadavku."))return;
+                    owned.push(...recovered);
+                    for(const cell of owned){
+                        const date=parseDateKey(cell.date);
+                        if(!date)continue;
+                        const key=vacationCellKey(cell.month,cell.row,date);
+                        if((vacationPlan[key]||"")===cell.code){
+                            const result=stageVacationManualChange(cell.month,cell.row,date,"");
+                            if(!result.ok)throw new Error(result.message);
+                        }
+                    }
+                    for(const req of activeList){
+                        const validation=validateRound0Request(w,req);
+                        if(!validation.ok)throw new Error(validation.message);
+                        req._generated=[];
+                        for(const p of validation.placements){
+                            if(p.adopted)continue;
+                            const date=parseDateKey(p.date);
+                            const result=stageVacationManualChange(p.month,p.row,date,p.code);
+                            if(!result.ok)throw new Error(result.message);
+                            req._generated.push({month:p.month,row:p.row,date:p.date,code:p.code});
+                        }
+                    }
+                    if(Object.keys(vacationManualChanges).length){
+                        const saved=await saveVacationManualChanges();
+                        if(saved!==true)throw new Error("Uložení buněk selhalo. Zkontrolujte hlášení a obnovte stránku.");
+                    }
+                    planCommitted=true;
+                    // Zápis individuálního záznamu je nutný: při F5 má přednost před agregátem.
+                    await saveRound0WorkerRecord(round0ModalYear,w.id,activeList);
+                    vacationRound0Requests[String(w.id)]=activeList;
+                    saveData(round0YearKey(YEAR),vacationRound0Requests);
+                    const payload={requests:JSON.parse(JSON.stringify(vacationRound0Requests||{})),generated:JSON.parse(JSON.stringify(vacationRound0Generated||{}))};
+                    clearTimeout(round0CloudSaveTimer);
+                    const response=await cloudFetch("app_settings?on_conflict=setting_key",{
+                        method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+                        body:JSON.stringify({setting_key:round0CloudKey(round0ModalYear),setting_value:payload,updated_at:new Date().toISOString()})
+                    });
+                    if(!response.ok)throw new Error("Uložení společné evidence: "+await response.text());
+                    backdrop.remove();
+                    renderVacationPlanning();
+                }catch(error){
+                    if(!planCommitted){
+                        vacationPlan=backupPlan;
+                        vacationManualChanges=backupChanges;
+                        updateVacationManualButtons();
+                    }
+                    alert("Uložení požadavků selhalo: "+error.message+" Pokud se změnil plán, obnovte stránku (F5).");
+                }finally{lkmtRound0SaveInProgress=false;}
+                return;
+            }
             if(lkmtEditorOwnRound0){
                 if(Number(YEAR)!==round0ModalYear){alert("Rok se změnil. Otevřete požadavky znovu.");return;}
                 if(round0EditorLocked){alert("0. kolo bylo mezitím uzamčeno.");return;}
@@ -8435,7 +8529,7 @@ function renderVacationPlanningControl() {
             backdrop.remove();
             renderVacationPlanning();
         }
-        close.addEventListener("click",finish); backdrop.addEventListener("click",function(e){if(e.target===backdrop) finish();});
+        saveButton.addEventListener("click",finish); close.addEventListener("click",function(){if(!lkmtRound0SaveInProgress)backdrop.remove();}); backdrop.addEventListener("click",function(e){if(e.target===backdrop&&!lkmtRound0SaveInProgress)backdrop.remove();});
         document.body.appendChild(backdrop);
     }
     workers.forEach(function(w,index){
