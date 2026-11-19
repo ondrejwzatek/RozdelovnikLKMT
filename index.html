@@ -9727,6 +9727,57 @@ async function lkmtLoadAccess() {
                 finally{if(person.role!=='admin')save.disabled=false;}
             };
             tdAction.append(save);
+            if(person.linked && person.role!=='admin') {
+                const changeEmail=document.createElement('button');
+                changeEmail.type='button';changeEmail.className='button';
+                changeEmail.textContent='Změnit přihlašovací e-mail';
+                changeEmail.style.marginLeft='6px';
+                changeEmail.onclick=()=>{
+                    if(role.value!==person.role || active.checked!==person.active || email.value.trim().toLowerCase()!==String(person.email).trim().toLowerCase()) {
+                        status.textContent='Nejprve vraťte neuložené změny nebo uložte roli a aktivaci.';return;
+                    }
+                    const previous=tdAction.querySelector('.lkmt-email-editor');
+                    if(previous){previous.remove();return;}
+                    const panel=document.createElement('div');
+                    panel.className='lkmt-email-editor';
+                    panel.style.cssText='margin-top:10px;padding:12px;border:1px solid #aaa;border-radius:8px;background:#f8f9fa;min-width:260px';
+                    const heading=document.createElement('div');
+                    heading.textContent='Změna přihlašovacího e-mailu: '+person.worker_name;
+                    heading.style.fontWeight='bold';
+                    const current=document.createElement('div');
+                    current.textContent='Původní: '+person.email;
+                    const newInput=document.createElement('input');
+                    newInput.type='email';newInput.placeholder='Nový e-mail';newInput.value=person.email;
+                    newInput.style.cssText='display:block;width:100%;box-sizing:border-box;margin:8px 0;padding:7px';
+                    const feedback=document.createElement('div');
+                    feedback.setAttribute('role','status');
+                    const submit=document.createElement('button');
+                    submit.type='button';submit.className='button';submit.textContent='Potvrdit změnu e-mailu';
+                    const cancel=document.createElement('button');
+                    cancel.type='button';cancel.className='button';cancel.textContent='Zrušit';
+                    cancel.style.marginLeft='6px';cancel.onclick=()=>panel.remove();
+                    submit.onclick=async()=>{
+                        const newEmail=newInput.value.trim().toLowerCase();
+                        if(!newInput.validity.valid || !newEmail.includes('@') || !newEmail.slice(newEmail.lastIndexOf('@')+1).includes('.')){feedback.textContent='Zkontrolujte e-mail: '+newEmail;return;}
+                        if(newEmail===String(person.email).toLowerCase()){feedback.textContent='Nový e-mail je stejný jako původní';return;}
+                        feedback.textContent='Ukládám změnu z '+person.email+' na '+newEmail+'…';
+                        submit.disabled=true;cancel.disabled=true;
+                        try {
+                            const response=await fetch(SUPABASE_URL+'/functions/v1/lkmt-admin-change-email',{
+                                method:'POST',headers:cloudHeaders(),body:JSON.stringify({worker_id:person.worker_id,email:newEmail})
+                            });
+                            const result=await response.json();
+                            if(!response.ok)throw new Error(result.message||'Změna selhala');
+                            await lkmtLoadAccess();
+                            document.getElementById('lkmtAccessStatus').textContent=result.message;
+                        }catch(e){feedback.textContent='Chyba: '+e.message;submit.disabled=false;cancel.disabled=false;}
+                    };
+                    panel.append(heading,current,newInput,feedback,submit,cancel);
+                    tdAction.append(panel);
+                    newInput.focus();
+                };
+                tdAction.append(changeEmail);
+            }
             if(person.email && person.active) {
                 const setup=document.createElement('button');
                 setup.type='button';setup.className='button';
